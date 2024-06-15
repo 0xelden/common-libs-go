@@ -1,0 +1,25 @@
+rules:
+  - id: go-no-nil-check-dereference
+    languages: [ go ]
+    message: "Possible dereference of a pointer without nil check"
+    severity: ERROR
+    pattern-either: # Use pattern-either for better control of pattern matching
+      - patterns:
+          - pattern: "*$VAR"  # Match any dereference of a pointer variable
+            # Exclude if there's a nil check
+          - pattern-not-inside: |
+              if $VAR != nil {
+                ...
+              }
+
+            # Exclude cases where nil-check is done inline in conditions
+          - pattern-not-inside: |
+              $VAR != nil && ...
+
+            # Exclude any function call with `ctx` and `*param`
+          - pattern-not-inside: |
+              $FUNC(ctx, *param)
+    metadata:
+      author: "dedisuryadi"
+      description: "Detects pointer dereference without prior nil check"
+      tags: [ "go", "security", "null dereference" ]

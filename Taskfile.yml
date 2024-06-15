@@ -1,0 +1,238 @@
+version: '3'
+
+dotenv: [ '.env' ]
+
+tasks:
+  default:
+    cmds:
+      - task: validate
+      - task: build
+
+  gen-columns:
+    desc: Generate column constants from Dao structs
+    cmds:
+      - go run ./cmd/gen-columns --struct-path=models --output-path=models
+  gen-repo:
+    desc: Run the repository generator (pass extra flags via task arguments)
+    cmds:
+      - go run ./cmd/gen-repo {{.CLI_ARGS}}
+      - task: gen-columns
+      - task: fmt
+  gen-repo:dry:
+    desc: Preview generated files without writing them (same args as gen-repo)
+    cmds:
+      - go run ./cmd/gen-repo --dry-run {{.CLI_ARGS}}
+
+  docs:
+    desc: Serve bundled mdbook docs archive on port 3321
+    cmds:
+      - |
+        if command -v common-docs &> /dev/null; then
+          common-docs -addr :3321
+        else
+          go install github.com/0xelden/common-libs-go/cmd/common-docs@dev
+        fi
+  docs:ref:
+    desc: Serve and watch mdbook docs on port 3321
+    cmds:
+      - gomarkdoc --exclude-dirs=./acl/... ./... -o ./docs/COMMON.md -e .
+      - perl -pi -e 's#/blob/main/#/blob/dev/#g' docs/COMMON.md
+
+  docs:serve:
+    desc: Serve and watch mdbook docs on port 3321
+    cmds:
+      - task docs:ref
+      - mdbook serve -p 3321 -o
+  docs:build:
+    desc: Build mdbook docs into ./book
+    cmds:
+      - task docs:ref
+      - rm -rf ./book
+      - mdbook build
+  docs:bundle:
+    desc: Build mdbook docs and package them for common-docs
+    cmds:
+      - task docs:build
+      - |
+        find ./book -type f \( \
+          -name '*.html' -o \
+          -name '*.css' -o \
+          -name '*.js' -o \
+          -name '*.json' -o \
+          -name '*.png' -o \
+          -name '*.svg' -o \
+          -name '*.ico' -o \
+          -name '*.woff' -o \
+          -name '*.woff2' -o \
+          -name '*.ttf' -o \
+          -name '*.eot' -o \
+          -name '*.wasm' \
+        \) | sed 's#^\./book/##' | tar -czf ./cmd/common-docs/docs.tar.gz -C ./book -T -
+
+  tidy:
+    desc: Run go mod tidy.
+    cmds: [ go mod tidy ]
+  pr:
+    desc: Create a pull request to dev branch
+    deps:
+      - validate
+      - build
+    cmds:
+      - git push -u origin HEAD
+      - gh pr create --base dev --fill --assignee @me
+  pr:qa:
+    desc: Create a pull request to qa branch
+    deps:
+      - validate
+      - build
+    cmds:
+      - git push -u origin HEAD
+      - gh pr create --base qa --fill --assignee @me
+  pr:main:
+    desc: Create a pull request to main branch
+    deps:
+      - validate
+      - build
+    cmds:
+      - git push -u origin HEAD
+      - gh pr create --base main --fill --assignee @me
+  pr:checkout:
+    desc: Checkout a pull request
+    cmds:
+      - git fetch
+      - gh pr list | fzf | awk '{print $1}' | xargs gh pr checkout
+  fmt:
+    desc: Format go code using go fmt
+    cmds: [ go fmt $(go list ./... | grep -v /vendor/) ]
+  vet:
+    desc: Run static analysis using go vet
+    cmds: [ go vet $(go list ./... | grep -v /vendor/) ]
+  test:
+    desc: Run unit test
+    cmds: [ go test $(go list ./... | grep -v /vendor/) ]
+  proto:
+    desc: Generate all proto file under protocs dir
+    cmds:
+      - protoc --proto_path=protocs --go_out=plugins=grpc:./ protocs/{{.TARGET}}
+    vars:
+      TARGET:
+        sh: export TG="{{.CLI_ARGS}}"; if [ ${#TG} -gt 0 ]; then echo $TG; else echo "*"; fi
+  nilaway:
+    desc: Run nilness analysis using NilAway
+    cmds:
+      - |
+        if command -v nilaway &> /dev/null; then
+          nilaway ./...
+        else
+          echo "nilaway not installed (go install go.uber.org/nilaway/cmd/nilaway@latest)"
+        fi
+  watch:
+    desc: Watch reload go build command
+    cmds: [ air ]
+  validate:
+    desc: Steps before the building the service binary.
+    cmds:
+      - task: tidy
+      - task: fmt
+      - task: vet
+      - task: test
+  build:
+    desc: Build the service binary.
+    cmds:
+      - |
+        go build {{.CLI_ARGS}} \
+        -ldflags=" \
+          -X 'github.com/0xelden/common-libs-go/cli.Commit={{.GIT_COMMIT}}' \
+          -X 'github.com/0xelden/common-libs-go/cli.Created={{.DATE}}' \
+          -X 'github.com/0xelden/common-libs-go/cli.Build={{.BUILD}}' \
+          -X 'github.com/0xelden/common-libs-go/cli.Version={{.GIT_TAG}}' "
+    vars:
+      GIT_COMMIT:
+        sh: git log -n 1 --format=%h
+      GIT_TAG:
+        sh: git describe --tags --always
+      DATE:
+        sh: date -R
+      BUILD:
+        sh: uname -nmr
+
+  dump:
+    desc: Dump current db on .env to a file
+    cmds:
+      - echo "start dumping $DB_NAME at ${DB_HOST}"
+      - mkdir -p dump
+      - PGPASSWORD=$DB_PWD pg_dump -h $DB_HOST -p $DB_PORT -U $DB_USER -Fc -d $DB_NAME | gzip > dump/${DB_NAME}_dump_$(date +%s).sql.gz
+      - ls -larth dump
+
+  restore:
+    desc: Restore the database from a selected dump file
+    vars:
+      TS:
+        sh: date +%s
+      TARGET_DB: '{{.DB_NAME}}_{{.TS}}'
+    cmds:
+      - |
+        #echo "Enter the target database name:"
+        #read TARGET_DB
+        #if [ -z "$TARGET_DB" ]; then
+        #  echo "No database name provided. Exiting."
+        #  exit 1
+        #fi
+        
+        TARGET_DB={{.TARGET_DB}}        
+        echo "Target database: $TARGET_DB"
+        
+        PGPASSWORD=$DB_PWD psql -h $DB_HOST -p $DB_PORT -d $DB_NAME -U $DB_USER -c 'CREATE DATABASE "{{.TARGET_DB}}";'
+
+        # Check if the ./dump directory exists
+        if [ ! -d "./dump" ]; then
+          echo "Error: Directory ./dump does not exist."
+          exit 1
+        fi
+        
+        # Display the files to the user with a numbered list
+        counter=1
+        echo ""
+        for file in ./dump/*.sql.gz; do
+          echo "$counter) $file"
+          eval "option_$counter='$file'"
+          counter=$((counter + 1))
+        done
+        
+        # Prompt the user to make a selection
+        while true; do
+          printf "Enter the number of the file you want to restore: "
+          read choice
+          if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -lt "$counter" ]; then
+            eval "DUMP_FILE=\$option_$choice"
+            echo "You selected: $DUMP_FILE"
+            break
+          else
+            echo "Invalid selection. Please try again."
+          fi
+        done
+        
+        echo "DB_PWD: $DB_PWD"
+        echo "DB_HOST: $DB_HOST"
+        echo "DB_PORT: $DB_PORT"
+        echo "DB_USER: $DB_USER"
+        echo "TARGET_DB: $TARGET_DB"
+        
+        # Ensure the necessary variables are set
+        if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ] || [ -z "$TARGET_DB" ]; then
+          echo "Error: One or more required environment variables (DB_PWD, DB_HOST, DB_PORT, DB_USER, TARGET_DB) are not set."
+          exit 1
+        fi
+        
+        # Restore the selected dump file
+        echo "Restoring the dump from: $DUMP_FILE to $TARGET_DB"
+        #PGPASSWORD="$DB_PWD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$TARGET_DB" -f <(gunzip -c "$DUMP_FILE")
+        gunzip -c "$DUMP_FILE" | PGPASSWORD="$DB_PWD" pg_restore -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$TARGET_DB" --no-owner --no-privileges
+        
+        # Check if the restore was successful
+        if [ $? -eq 0 ]; then
+          echo "Database restore completed successfully."
+        else
+          echo "Error: Database restore failed."
+          exit 1
+        fi
