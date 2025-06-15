@@ -292,6 +292,44 @@ func (g generalRepo) UpdateScanRow(ctx context.Context, result interface{}, stmt
 	return nil
 }
 
+// VerifyIdsExist checks that every id in ids is present in this repo's bound
+// table's id column (optionally narrowed by extra conditions, e.g.
+// sq.Eq{"status": 1} to require the row be active). Returns nil if ids is
+// empty, or a descriptive error naming whichever ids were not found.
+func (g generalRepo) VerifyIdsExist(ctx context.Context, ids []string, where ...sq.Sqlizer) serror.SError {
+	if len(ids) == 0 {
+		return nil
+	}
+	if g.table == nil {
+		return serror.New("VerifyIdsExist: repo has no bound table")
+	}
+
+	stmt := sq.Select("id").From(*g.table).Where("id = ANY(?::uuid[])", pq.Array(ids))
+	for _, cond := range where {
+		stmt = stmt.Where(cond)
+	}
+
+	var found []string
+	if serr := g.SelectScanRows(ctx, &found, stmt); serr != nil {
+		return serr
+	}
+
+	foundSet := make(map[string]struct{}, len(found))
+	for _, id := range found {
+		foundSet[id] = struct{}{}
+	}
+	var missing []string
+	for _, id := range ids {
+		if _, ok := foundSet[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) > 0 {
+		return serror.Newf("unknown id(s) in %s: %v", *g.table, missing)
+	}
+	return nil
+}
+
 func (g generalRepo) InsertRows(ctx context.Context, stmt sq.InsertBuilder) (affected int64, serr serror.SError) {
 	if g.table != nil {
 		if v, ok := builder.Get(stmt, "Into"); !ok || v == "" {

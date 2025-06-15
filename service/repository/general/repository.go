@@ -246,6 +246,11 @@ func (r *Repository[dto, model]) Get(ctx context.Context, param api.ViewParam) (
 	return res.Rows[0], nil
 }
 
+// VerifyIdsExist delegates to the underlying GeneralRepo — see its doc comment.
+func (r *Repository[dto, model]) VerifyIdsExist(ctx context.Context, ids []string, where ...sq.Sqlizer) serror.SError {
+	return r.config.Repo.VerifyIdsExist(ctx, ids, where...)
+}
+
 func (r *Repository[dto, model]) List(ctx context.Context, param api.IndexParam) (result api.RowIndex[model], serr serror.SError) {
 	if iface, ok := r.config.Overrider.(service.Lister[model]); ok {
 		return iface.List(ctx, param)

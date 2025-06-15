@@ -38,6 +38,7 @@ type GeneralRepo interface {
 	CountRows(ctx context.Context, stmt sq.SelectBuilder) (total int64, serr serror.SError)
 	RawSelectOne(ctx context.Context, result any, query string, args ...any) serror.SError
 	RawSelectRows(ctx context.Context, result any, query string, args ...any) serror.SError
+	VerifyIdsExist(ctx context.Context, ids []string, where ...sq.Sqlizer) serror.SError
 	Driver() db.Driver
 	TableName() string
 }
@@ -62,4 +63,5 @@ type Repository[dto, model any] interface {
 	Remove(ctx context.Context, id string, where ...sq.Sqlizer) (affected int64, serr serror.SError)
 	Get(ctx context.Context, param api.ViewParam) (result model, serr serror.SError)
 	List(ctx context.Context, param api.IndexParam) (result api.RowIndex[model], serr serror.SError)
+	VerifyIdsExist(ctx context.Context, ids []string, where ...sq.Sqlizer) serror.SError
 }
