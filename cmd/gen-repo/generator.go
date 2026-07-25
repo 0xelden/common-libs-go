@@ -346,12 +346,12 @@ import (
 
 func Index%[3]s(ctrl *%[3]sCtrl) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		ctx := api.SetContext(c, shared.OmitTotal, c.Query(shared.OmitTotal))
 		param, err := api.NewIndexParam(c, binding.Query)
 		if err != nil {
 			api.Error(c, err)
 			return
 		}
-		ctx := api.SetContext(c, shared.OmitTotal, c.Query(shared.OmitTotal))
 		result, serr := ctrl.Index%[3]s(ctx, *param)
 		if serr != nil {
 			api.Error(c, serr)

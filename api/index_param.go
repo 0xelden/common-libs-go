@@ -48,7 +48,11 @@ func NewIndexParam(ctx *gin.Context, binding binding.Binding) (*IndexParam, erro
 		FilterMap: map[string]string{},
 	}
 	_ = ctx.MustBindWith(param, binding) // ignore error here
-	omitTotal := helper.ContextGetString(ctx.Request.Context(), shared.OmitTotal) == "1"
+	// omit_total dibaca langsung dari query (fallback ke context): handler umumnya baru memanggil
+	// SetContext SETELAH NewIndexParam (lihat template cmd/gen-repo), sehingga nilai di context
+	// belum terisi di titik ini dan pembesaran size ke maxPageSize tidak pernah aktif.
+	omitTotal := ctx.Query(shared.OmitTotal) == "1" ||
+		helper.ContextGetString(ctx.Request.Context(), shared.OmitTotal) == "1"
 	if omitTotal {
 		param.Page = 1
 		param.Size = helper.If(param.Size > 0, param.Size, maxPageSize)
