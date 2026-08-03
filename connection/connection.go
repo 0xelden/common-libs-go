@@ -6,20 +6,22 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/tabwriter"
 	"time"
 
+	"github.com/0xelden/common-libs-go/helper"
+	"github.com/0xelden/common-libs-go/objstorage"
+	"github.com/0xelden/common-libs-go/serror"
+	"github.com/0xelden/common-libs-go/shared"
 	"github.com/ClickHouse/clickhouse-go"
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/hibiken/asynq"
 	_ "github.com/joho/godotenv/autoload"
 	_ "github.com/lib/pq"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/uptrace/opentelemetry-go-extra/otelsql"
-	"github.com/0xelden/common-libs-go/helper"
-	"github.com/0xelden/common-libs-go/objstorage"
-	"github.com/0xelden/common-libs-go/serror"
-	"github.com/0xelden/common-libs-go/shared"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	_ "modernc.org/sqlite"
 )
@@ -232,6 +234,42 @@ func ConnectRedis() (*redis.Client, serror.SError) {
 		return nil, serror.NewFromError(err)
 	}
 	return client, nil
+}
+
+// ConnectAsynq builds the *asynq.RedisClientOpt used by both worker.NewConfig
+// and asynq.NewClient, from JOB_REDIS_HOST/PORT/PWD/DB (DB defaults to 1, not
+// 0, so the job queue doesn't share a keyspace with ConnectRedis's session/
+// cache DB by default). Connectivity is verified via asynq.Inspector.Servers,
+// which also logs any already-running worker servers found on that Redis.
+func ConnectAsynq() (*asynq.RedisClientOpt, serror.SError) {
+	var (
+		db   = helper.StringToInt(helper.Env("JOB_REDIS_DB"), 1)
+		host = helper.Env("JOB_REDIS_HOST", "127.0.0.1")
+		port = helper.Env("JOB_REDIS_PORT", "6379")
+		pass = helper.Env("JOB_REDIS_PWD", "")
+		addr = fmt.Sprintf("%s:%s", host, port)
+		opts = &asynq.RedisClientOpt{Addr: addr, Password: pass, DB: int(db)}
+		insp = asynq.NewInspector(opts)
+	)
+
+	res, err := insp.Servers()
+	if err != nil {
+		return nil, serror.NewFromError(err)
+	}
+
+	//goland:noinspection GoUnhandledErrorResult
+	defer insp.Close()
+
+	for _, r := range res {
+		w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
+		_, _ = fmt.Fprintln(w, "Job server\t: "+r.ID)
+		_, _ = fmt.Fprintln(w, "Job host\t: "+r.Host)
+		_, _ = fmt.Fprintln(w, "Active workers\t: "+helper.ToString(r.ActiveWorkers))
+		_, _ = fmt.Fprintln(w, "Status\t: "+r.Status)
+		_ = w.Flush()
+	}
+
+	return opts, nil
 }
 
 // ConnectObjectStorage connects to the object-storage backend selected by the

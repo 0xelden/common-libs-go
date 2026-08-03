@@ -20,6 +20,10 @@ type Config struct {
 	Parallel    map[string]int
 	Mux         map[string]*asynq.ServeMux
 	Trxb        db.TrxBuilder
+
+	// scheduler is lazily created by the first RegisterCron call; nil means
+	// no cron entries were registered and StartWorker won't start one.
+	scheduler *asynq.Scheduler
 }
 
 func NewConfig(name string, clientOpt *asynq.RedisClientOpt, client *asynq.Client, trxb db.TrxBuilder) Config {
@@ -68,6 +72,12 @@ func (cfg *Config) StartWorker(ctx context.Context) serror.SError {
 		v := v
 		g.Go(func() error {
 			return cfg.startWorker(k, v)
+		})
+	}
+
+	if cfg.scheduler != nil {
+		g.Go(func() error {
+			return cfg.scheduler.Run()
 		})
 	}
 
