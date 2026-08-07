@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/blockloop/scan/v2"
@@ -54,7 +53,7 @@ func (g generalRepo) incdec(ctx context.Context, param models.FieldParam, query 
 	}
 
 	var (
-		qfield = strconv.Quote(param.Field)
+		qfield = helper.QuoteIdent(param.Field)
 		by     = helper.ContextGetString(ctx, shared.X_UserId)
 		stmt   = fmt.Sprintf(query, param.Table, qfield, qfield)
 		named  = []sql.NamedArg{
