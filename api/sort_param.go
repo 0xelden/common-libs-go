@@ -2,12 +2,12 @@ package api
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-errors/errors"
+	"github.com/0xelden/common-libs-go/helper"
 )
 
 //go:generate easytags $GOFILE query,form,json
@@ -62,8 +62,10 @@ func (s *SortParam) generateSortStmt() (string, error) {
 		if strings.ToLower(strings.TrimSpace(split[1])) == "desc" {
 			order = "DESC"
 		}
-		// escape quote chars on column name
-		col = strconv.Quote(col)
+		// quote the column name as a SQL identifier -- strconv.Quote would emit
+		// Go escaping (\"), which PostgreSQL does not honour inside a quoted
+		// identifier, letting a crafted sort value escape it
+		col = helper.QuoteIdent(col)
 		parts = append(parts, fmt.Sprintf(`%s %s`, col, order))
 	}
 	if len(parts) == 0 {

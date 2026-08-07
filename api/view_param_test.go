@@ -140,13 +140,31 @@ func TestNewViewParam(t *testing.T) {
 			},
 		},
 		{
-			name: "valid query filters without id",
+			// Security regression: Filters is raw SQL and must not be bindable
+			// from the request. This case used to bind ?filters= into the WHERE
+			// clause; now it is ignored, leaving the request unconstrained (no
+			// id, no filters), which validation correctly rejects.
+			name: "query filters are ignored",
 			args: args{
 				ctx:     newViewParamTestContext("filters=status%3Dactive&filters=type%3Dcustomer"),
 				binding: binding.Query,
 			},
+			wantErr: true,
+		},
+		{
+			// The auth-bypass this closes: gin assigns a bound field whenever
+			// the key is present, so ?filters= previously REPLACED the scoping
+			// fragment the caller passed in, widening the query to any row.
+			name: "query filters cannot override caller filters",
+			args: args{
+				ctx:     newViewParamTestContext("filters=1%3D1"),
+				binding: binding.Query,
+				id:      "550e8400-e29b-41d4-a716-446655440000",
+				filter:  []string{"result.company_id = 'c1'"},
+			},
 			want: &ViewParam{
-				Filters: []string{"status=active", "type=customer"},
+				Id:      "550e8400-e29b-41d4-a716-446655440000",
+				Filters: []string{"result.company_id = 'c1'"},
 			},
 		},
 		{

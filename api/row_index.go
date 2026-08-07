@@ -132,6 +132,16 @@ func (r *RowIndex[Row]) List(ctx context.Context, db db.Driver, param IndexParam
 		filters   = param.GenerateFilterStmt(useAndClause...)
 	)
 
+	// Both clauses are interpolated into the query template as raw SQL, so they
+	// are checked before any of it reaches the driver. This matters most for the
+	// count query below: it runs without bind arguments, which makes lib/pq use
+	// the simple protocol, where a `;` would let injected DDL/DML execute.
+	// IndexParam.Filters is a plain []string that callers append to directly,
+	// so a fragment can arrive here without ever passing through parseFilter.
+	if helper.SQLFragmentHasStatementBreak(filters) {
+		return serror.New("invalid filter: statement terminator or comment not allowed")
+	}
+
 	if withTotal {
 		// Normalize commented placeholders before injecting generated filters.
 		countQuery = r.replaceHandle(countQuery)
@@ -149,6 +159,12 @@ func (r *RowIndex[Row]) List(ctx context.Context, db db.Driver, param IndexParam
 			sort      = param.GenerateSortStmt()
 			selective = strings.Count(listQuery, "%s") == 3 && len(param.Column) > 0
 		)
+
+		// SortStmt can also be assigned directly by callers, bypassing
+		// generateSortStmt's quoting.
+		if helper.SQLFragmentHasStatementBreak(sort) {
+			return serror.New("invalid sort: statement terminator or comment not allowed")
+		}
 
 		// Apply the same normalization for list queries that use optional clauses.
 		listQuery = r.replaceHandle(listQuery)

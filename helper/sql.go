@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -97,16 +98,75 @@ func GenPatchStatement(table string, patchData interface{}, id ...string) (stmt 
 	return stmt, args
 }
 
+var (
+	// safeIdentRe matches an unquoted identifier that PostgreSQL parses as a
+	// plain name, so it can be emitted as-is.
+	safeIdentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_$]*$`)
+
+	// quotedIdentRe matches an identifier that is already correctly quoted,
+	// i.e. wrapped in double quotes with every inner quote doubled.
+	quotedIdentRe = regexp.MustCompile(`^"([^"]|"")*"$`)
+)
+
+// QuoteIdent quotes s as a PostgreSQL identifier, doubling every embedded
+// double quote.
+//
+// It exists because strconv.Quote is not a SQL escaper: it emits Go escaping
+// (\") where PostgreSQL expects SQL escaping (""). PostgreSQL treats the
+// backslash inside a quoted identifier as an ordinary character, so the \"
+// closes the identifier early and everything after it is parsed as SQL --
+// turning a sort/column parameter into an injection point.
+func QuoteIdent(s string) string {
+	// NUL cannot appear in an identifier and would truncate the statement.
+	s = strings.ReplaceAll(s, "\x00", "")
+	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+}
+
+// quoteIdentSegment renders one dot-separated segment of a column reference.
+// Bare safe identifiers and already-quoted identifiers pass through unchanged
+// so existing "alias.column" and `"schema".table.column` forms keep resolving
+// the same way; anything else is quoted, which makes it inert -- it can then
+// only ever name a (probably non-existent) column, never break out into SQL.
+func quoteIdentSegment(seg string) string {
+	if safeIdentRe.MatchString(seg) || quotedIdentRe.MatchString(seg) {
+		return seg
+	}
+	return QuoteIdent(seg)
+}
+
+// quoteLeafIdent renders the final segment of a column reference, which is
+// always quoted so that reserved words ("user", "order", "date") keep working
+// as column names. Already-quoted input is left alone to stay idempotent.
+func quoteLeafIdent(seg string) string {
+	if quotedIdentRe.MatchString(seg) {
+		return seg
+	}
+	return QuoteIdent(seg)
+}
+
 func escapeColumn(col string) string {
 	if len(col) == 0 {
 		return col
 	}
 	part := strings.Split(col, ".")
 	if len(part) == 1 {
-		return strconv.Quote(strings.TrimSpace(col))
+		return quoteLeafIdent(strings.TrimSpace(col))
 	}
+	// Every segment is checked, not just the last one: the prefix used to be
+	// copied through verbatim, so a column like "x; DROP TABLE y; --.z" ended
+	// up emitting its prefix as raw SQL.
 	last := len(part) - 1
-	return strings.Join(part[:last], ".") + "." + strconv.Quote(strings.TrimSpace(part[last]))
+	for i, seg := range part {
+		trimmed := strings.TrimSpace(seg)
+		if i == last {
+			part[i] = quoteLeafIdent(trimmed)
+			continue
+		}
+		// Leading whitespace is significant to EscapeColumnStmt, which splits
+		// on "," and relies on the ", " spacing surviving the round trip.
+		part[i] = strings.TrimSuffix(seg, trimmed) + quoteIdentSegment(trimmed)
+	}
+	return strings.Join(part, ".")
 }
 
 func EscapeColumnStmt(stmt string) string {
@@ -137,6 +197,67 @@ func EqNullOrEmptyDate(key string, value *time.Time) string {
 		return fmt.Sprintf(`(%[1]s is null)`, key)
 	}
 	return FormatSQL(fmt.Sprintf(`%s = ?`, key), value)
+}
+
+// SQLFragmentHasStatementBreak reports whether a generated SQL fragment (a
+// WHERE or ORDER BY clause that gets interpolated into a query template)
+// contains a statement terminator, a comment introducer, or an unterminated
+// string literal -- none of which a legitimate fragment ever needs.
+//
+// This is the last line of defence for the count query in api.RowIndex.List,
+// which is executed without bind arguments. lib/pq sends argument-less queries
+// over the simple protocol (see conn.go: `if len(args) == 0 { simpleQuery }`),
+// and the simple protocol happily executes several statements in one round
+// trip -- so a `;` reaching that query means arbitrary DDL/DML, not just a
+// leaked row.
+//
+// It is deliberately structural rather than a keyword blocklist: occurrences
+// inside quoted literals are skipped, so a genuine filter such as
+// name ILIKE '%a--b%' or note = 'x; y' still passes.
+func SQLFragmentHasStatementBreak(fragment string) bool {
+	const (
+		plain = iota
+		inSingleQuote
+		inDoubleQuote
+	)
+
+	state := plain
+	for i := 0; i < len(fragment); i++ {
+		switch c := fragment[i]; state {
+		case inSingleQuote:
+			if c == '\'' {
+				if i+1 < len(fragment) && fragment[i+1] == '\'' {
+					i++ // '' is an escaped quote, the literal continues
+					continue
+				}
+				state = plain
+			}
+		case inDoubleQuote:
+			if c == '"' {
+				if i+1 < len(fragment) && fragment[i+1] == '"' {
+					i++ // "" is an escaped quote, the identifier continues
+					continue
+				}
+				state = plain
+			}
+		default:
+			switch {
+			case c == '\'':
+				state = inSingleQuote
+			case c == '"':
+				state = inDoubleQuote
+			case c == ';':
+				return true
+			case c == '-' && i+1 < len(fragment) && fragment[i+1] == '-':
+				return true
+			case c == '/' && i+1 < len(fragment) && fragment[i+1] == '*':
+				return true
+			}
+		}
+	}
+
+	// An unclosed literal would swallow the remainder of the query template.
+	return state != plain
 }
 
 func ExprContainsMaliciousSqlKeyword(str string) bool {

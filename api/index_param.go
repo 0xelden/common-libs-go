@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/ganigeorgiev/fexpr"
@@ -27,7 +26,11 @@ type IndexParam struct {
 	Filter   string   `query:"filter" form:"filter" json:"filter"`
 	Sort     []string `query:"sort" form:"sort" json:"sort"`
 	Column   []string `query:"column" form:"column" json:"column"`
-	SortStmt string   `query:"-" form:"-" json:"-"`
+	SortStmt string `query:"-" form:"-" json:"-"`
+
+	// Filters holds raw SQL fragments spliced into the WHERE clause. It is not
+	// bindable from the request; build entries with AddFilter rather than
+	// fmt.Sprintf, which would make user input part of the statement.
 	Filters  []string `query:"-" form:"-" json:"-"`
 	FileName string   `query:"-" form:"-" json:"-"`
 
@@ -75,7 +78,11 @@ func NewIndexParam(ctx *gin.Context, binding binding.Binding) (*IndexParam, erro
 		if err != nil {
 			return nil, err
 		}
-		param.Filters = append(param.Filters, filter)
+		// Routed through AddFilter so every fragment, whatever its origin,
+		// passes the same check before it can reach a query template.
+		if err := param.AddFilter(filter); err != nil {
+			return nil, err
+		}
 	}
 	if len(param.Sort) > 0 {
 		sortStmt, err := param.generateSortStmt()
@@ -117,7 +124,11 @@ func NewIndexParamWithContext(ctx context.Context, param *IndexParam) (*IndexPar
 		if err != nil {
 			return nil, err
 		}
-		param.Filters = append(param.Filters, filter)
+		// Routed through AddFilter so every fragment, whatever its origin,
+		// passes the same check before it can reach a query template.
+		if err := param.AddFilter(filter); err != nil {
+			return nil, err
+		}
 	}
 	if len(param.Sort) > 0 {
 		sortStmt, err := param.generateSortStmt()
@@ -155,8 +166,10 @@ func (i *IndexParam) generateSortStmt() (string, error) {
 		if isJsonb {
 			col = jsonbCol
 		} else {
-			// escape quote chars on column name
-			col = strconv.Quote(col)
+			// quote the column name as a SQL identifier -- strconv.Quote would
+			// emit Go escaping (\"), which PostgreSQL does not honour inside a
+			// quoted identifier, letting a crafted sort value escape it
+			col = helper.QuoteIdent(col)
 		}
 		parts = append(parts, fmt.Sprintf(`%s %s`, col, order))
 	}
@@ -305,6 +318,38 @@ func (i *IndexParam) parseFilter(str string) (res string, err error) {
 		return "", err
 	}
 	return strings.Join(filter, " "), nil
+}
+
+// buildFilterFragment renders a trusted SQL template with escaped arguments
+// and refuses anything that would escape the clause it is destined for. It
+// backs both IndexParam.AddFilter and ViewParam.AddFilter.
+func buildFilterFragment(stmt string, args ...any) (string, error) {
+	if strings.TrimSpace(stmt) == "" {
+		return "", errors.New("empty filter statement")
+	}
+	fragment := helper.FormatSQL(stmt, args...)
+	if helper.SQLFragmentHasStatementBreak(fragment) {
+		return "", errors.New("invalid filter: statement terminator or comment not allowed")
+	}
+	return fragment, nil
+}
+
+// AddFilter appends a WHERE fragment built from a developer-written template
+// and user-supplied values, e.g.
+//
+//	param.AddFilter("result.company_id = ?", companyID)
+//
+// The template is trusted, every arg is escaped by helper.FormatSQL, and the
+// result is rejected if it would break out of the clause. Prefer this over
+// appending to Filters directly — that field is raw SQL, so a value pasted in
+// with fmt.Sprintf is an injection point.
+func (i *IndexParam) AddFilter(stmt string, args ...any) error {
+	fragment, err := buildFilterFragment(stmt, args...)
+	if err != nil {
+		return err
+	}
+	i.Filters = append(i.Filters, fragment)
+	return nil
 }
 
 func (i *IndexParam) GenerateFilterStmt(useAndClause ...bool) string {
