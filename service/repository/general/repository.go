@@ -6,13 +6,13 @@ import (
 	"errors"
 	"reflect"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/0xelden/common-libs-go/api"
 	"github.com/0xelden/common-libs-go/db"
 	"github.com/0xelden/common-libs-go/helper"
+	"github.com/0xelden/common-libs-go/serror"
 	"github.com/0xelden/common-libs-go/service"
 	"github.com/0xelden/common-libs-go/shared"
-	"github.com/0xelden/common-libs-go/serror"
+	sq "github.com/Masterminds/squirrel"
 )
 
 type RepositoryConfig[dto, model any] struct {
@@ -227,7 +227,7 @@ func (r *Repository[dto, model]) Get(ctx context.Context, param api.ViewParam) (
 	}
 	var filters []string
 	if param.Id != "" {
-		filters = append(filters, helper.FormatSQL("result.id = ?", param.Id))
+		filters = append(filters, helper.FormatSQL("id = ?", param.Id))
 	}
 	filters = append(filters, param.Filters...)
 	idx := api.IndexParam{
