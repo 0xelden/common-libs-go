@@ -52,7 +52,7 @@ func (r *DTO[T]) SelectRows(ctx context.Context, stmt sq.SelectBuilder) (result 
 func (r *DTO[T]) ColValues(ctx context.Context, t any) (columns []string, values []any, serr serror.SError) {
 	var (
 		err  error
-		now  = time.Now()
+		now  = time.Now().UTC()
 		by   = helper.ContextGetAny(ctx, shared.X_UserId, nil)
 		excl = []string{"status", "created_by", "created_at", "updated_by", "updated_at"}
 	)
@@ -75,7 +75,7 @@ func (r *DTO[T]) PrepStructInsert(ctx context.Context, Struct any) (maps map[str
 		return maps, serror.New("Struct must be a pointer")
 	}
 	var (
-		now = time.Now()
+		now = time.Now().UTC()
 		by  = helper.ContextGetAny(ctx, shared.X_UserId, nil)
 	)
 	maps = helper.StructToMapDB(Struct)
@@ -95,7 +95,7 @@ func (r *DTO[T]) PrepStructEdit(ctx context.Context, Struct any, excludeColumns 
 		return maps, serror.New("Struct must be a pointer")
 	}
 	var (
-		now     = time.Now()
+		now     = time.Now().UTC()
 		by      = helper.ContextGetAny(ctx, shared.X_UserId, nil)
 		withId  = helper.ContextGetString(ctx, "with_id") == "1"
 		defExcl = helper.If(withId, []string{"created_by", "created_at"}, []string{"id", "created_by", "created_at"})
@@ -157,7 +157,7 @@ func (r *DTO[T]) insertRows(ctx context.Context, form []T, itemCallback func(ind
 	}
 
 	var (
-		now   = time.Now()
+		now   = time.Now().UTC()
 		by    = helper.ContextGetAny(ctx, shared.X_UserId)
 		stmt  = sq.Insert(r.table)
 		rows  = make([]map[string]any, 0, len(form))
@@ -241,7 +241,7 @@ func (r *DTO[T]) patchRows(ctx context.Context, form []T, itemCallback func(inde
 	}
 
 	var (
-		now   = time.Now()
+		now   = time.Now().UTC()
 		by    = helper.ContextGetAny(ctx, shared.X_UserId)
 		stmt  = sq.Update(r.table)
 		rows  = []map[string]any{}
@@ -308,7 +308,7 @@ func (r *DTO[T]) patchRows(ctx context.Context, form []T, itemCallback func(inde
 
 func (r *DTO[T]) PatchRow(ctx context.Context, form T, itemCallback func(item map[string]any)) (result T, serr serror.SError) {
 	var (
-		now   = time.Now()
+		now   = time.Now().UTC()
 		by    = helper.ContextGetAny(ctx, shared.X_UserId)
 		stmt  = sq.Update(r.table)
 		hasCb = itemCallback != nil
