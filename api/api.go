@@ -125,7 +125,7 @@ func Response(c *gin.Context, code int, error serror.SError, data interface{}) {
 
 	if verbose {
 		res.Ctx[shared.X_UserId] = c.GetString(shared.X_UserId)
-		res.Ctx[shared.X_RoleId] = c.GetString(shared.X_RoleId)
+		res.Ctx[shared.X_RoleIds] = c.GetString(shared.X_RoleIds)
 		res.Ctx[shared.X_PortalId] = c.GetString(shared.X_PortalId)
 		res.Ctx[shared.X_PortalDomain] = c.GetString(shared.X_PortalDomain)
 	}

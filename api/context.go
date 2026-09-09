@@ -9,11 +9,13 @@ import (
 	"github.com/0xelden/common-libs-go/shared"
 )
 
-func defaultContextValue(c *gin.Context) [28]string {
-	def := [28]string{
+// The array is sized to exactly the pairs below: any spare slots would be
+// written to the context as an empty key/value pair by SetContext.
+func defaultContextValue(c *gin.Context) [22]string {
+	def := [22]string{
 		shared.X_Portal, c.GetString(shared.X_Portal),
 		shared.X_PortalCode, c.GetString(shared.X_PortalCode),
-		shared.X_RoleId, c.GetString(shared.X_RoleId),
+		shared.X_RoleIds, c.GetString(shared.X_RoleIds),
 		shared.X_UserId, c.GetString(shared.X_UserId),
 		shared.X_Level, c.GetString(shared.X_Level),
 		shared.X_Action, c.GetString(shared.X_Action),

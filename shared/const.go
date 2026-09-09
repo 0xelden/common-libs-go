@@ -5,7 +5,7 @@ const (
 	X_PortalDomain = "x_portal_domain"
 	X_PortalId     = "x_portal_id"
 	X_PortalCode   = "x_portal_code"
-	X_RoleId       = "x_role_id"
+	X_RoleIds      = "x_role_ids"
 	X_Service      = "x_service"
 	X_Controller   = "x_controller"
 	X_Action       = "x_action"
@@ -18,6 +18,19 @@ const (
 	X_AtClaims     = "x_at_claims"
 	X_Token        = "x_token"
 	X_Level        = "x_level"
+
+	// X_RoleId is the pre-multi-role context key, which only ever carried a
+	// single role id (and in practice never got past its EmptyUuid default).
+	// A user holds a list of roles, so read X_RoleIds instead.
+	//
+	// Deprecated: use X_RoleIds, via auth.RoleIdsFromContext.
+	X_RoleId = "x_role_id"
+
+	// RoleIdSeparator joins X_RoleIds into one string. The context plumbing
+	// (api.SetContext's key/value pairs, and gRPC metadata, which is
+	// string-valued) can only carry strings, so the list travels joined and
+	// is split back by auth.RoleIdsFromContext.
+	RoleIdSeparator = ","
 
 	DangerouslySetColumns = "columns"
 	OmitTotal             = "omit_total"

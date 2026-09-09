@@ -214,8 +214,11 @@ func SetMetadata(basepoint string, noRefURI ...string) gin.HandlerFunc {
 
 		// set empty uuid as default
 		ctx.Set(shared.X_PortalId, shared.EmptyUuid)
-		ctx.Set(shared.X_RoleId, shared.EmptyUuid)
 		ctx.Set(shared.X_UserId, shared.EmptyUuid)
+		// roles are a list, so "none yet" is the empty string rather than a
+		// placeholder uuid — an EmptyUuid default would decode as one role
+		// whose id is all zeroes.
+		ctx.Set(shared.X_RoleIds, "")
 
 		// set portal domain
 		dom := ctx.Request.Header.Get("X-Portal")
@@ -318,6 +321,11 @@ func GuardRoute(publicPath ...string) gin.HandlerFunc {
 		ctx.Set(shared.X_UserId, claims.UserId)
 		ctx.Set(shared.X_UserEmail, claims.Email)
 		ctx.Set(shared.X_UserPhone, claims.PhoneNumber)
+		// A user holds a list of roles; they ride the context joined, and are
+		// read back with authModels.RoleIdsFromContext. Sourced from the
+		// session rather than the token so a role change takes effect as soon
+		// as the session is rewritten, without waiting out the access token.
+		ctx.Set(shared.X_RoleIds, authModels.JoinRoleIds(session.RoleIds()))
 
 		if span := trace.SpanFromContext(reqCtx); span.IsRecording() {
 			span.SetAttributes(

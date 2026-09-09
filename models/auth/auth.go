@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -25,14 +27,79 @@ type AccessTokenClaims struct {
 	jwt.RegisteredClaims
 }
 
+// SessionRole is one role grant in the session payload. A user holds a list
+// of these, not a single role.
+type SessionRole struct {
+	Id    string `json:"id"`
+	Name  string `json:"name"`
+	Level *int64 `json:"level"`
+}
+
 // SessionEnvelope is a partial view of the session payload the auth service
 // stores at ses-data-<user_id>. Only the fields common's own middleware needs
-// are modeled here; unrecognized fields (apps/portals/menu tree, etc.) are
+// are modeled here; unrecognized fields (menu tree, permissions, etc.) are
 // ignored by json.Unmarshal.
 type SessionEnvelope struct {
+	Roles []SessionRole `json:"roles"`
+
+	// Company is the legacy multi-tenant shape written by
+	// uzzeet-usm-service. Single-tenant payloads omit it entirely, leaving it
+	// zeroed; it is kept only so those older sessions still parse.
 	Company struct {
 		Id string `json:"id"`
 	} `json:"company"`
+}
+
+// RoleIds returns the ids of every role in the session, skipping entries with
+// no id so a malformed row can't inject an empty id into a permission check.
+// The result is nil when the user holds no roles.
+func (s SessionEnvelope) RoleIds() []string {
+	var ids []string
+	for _, role := range s.Roles {
+		if role.Id != "" {
+			ids = append(ids, role.Id)
+		}
+	}
+	return ids
+}
+
+// JoinRoleIds encodes role ids for transport in a string-only context value
+// (see shared.RoleIdSeparator).
+func JoinRoleIds(ids []string) string {
+	return strings.Join(ids, shared.RoleIdSeparator)
+}
+
+// RoleIdsFromContext reads back the role ids GuardRoute put on the request.
+//
+// It accepts a *gin.Context (which resolves string keys against its own Keys)
+// as well as the context.Context derived by api.SetContext, so a handler and
+// anything downstream of it read roles the same way. The result is nil when
+// the caller holds no roles.
+func RoleIdsFromContext(ctx context.Context) []string {
+	raw := helper.ContextGetString(ctx, shared.X_RoleIds)
+	if raw == "" {
+		return nil
+	}
+	var ids []string
+	for _, id := range strings.Split(raw, shared.RoleIdSeparator) {
+		if id = strings.TrimSpace(id); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// HasRole reports whether the caller holds roleId.
+func HasRole(ctx context.Context, roleId string) bool {
+	if roleId == "" {
+		return false
+	}
+	for _, id := range RoleIdsFromContext(ctx) {
+		if id == roleId {
+			return true
+		}
+	}
+	return false
 }
 
 type RefreshToken struct {
