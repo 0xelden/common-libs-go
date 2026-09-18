@@ -183,6 +183,12 @@ func TraceRequest() gin.HandlerFunc {
 			span.SetAttributes(attribute.String("ua.device.type", dt))
 			span.SetAttributes(attribute.String("http.route_url", c.Request.Host+c.Request.URL.String()))
 			span.SetAttributes(attribute.String("http.client_ip", ua.IP))
+			if v := c.Request.Header.Values("Referer"); len(v) > 0 {
+				span.SetAttributes(attribute.StringSlice("http.request.header.referer", v))
+			}
+			if v := c.Request.Header.Values("Origin"); len(v) > 0 {
+				span.SetAttributes(attribute.StringSlice("http.request.header.origin", v))
+			}
 
 			// trace git commit id
 			span.SetAttributes(attribute.String("x.commit_id", helper.If(cli.Commit != "", cli.Commit, helper.First(helper.GitCommitID()))))
