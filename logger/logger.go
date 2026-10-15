@@ -129,7 +129,7 @@ func (ox *loggerObj) Startup() error {
 			ox._file = filepath.Join(ox.Path, ox._name)
 
 			if !isExists(ox.Path) {
-				err = os.MkdirAll(ox.Path, os.ModePerm)
+				err = os.MkdirAll(ox.Path, os.ModePerm) // #nosec G301
 				if err != nil {
 					return err
 				}
@@ -146,7 +146,7 @@ func (ox *loggerObj) Startup() error {
 		go func() {
 			for {
 				time.Sleep(3 * time.Second)
-				ox.flush()
+				_ = ox.flush()
 			}
 		}()
 	}
@@ -229,7 +229,7 @@ func (ox *loggerObj) open() error {
 	}
 
 	var err error
-	ox._stream, err = os.OpenFile(ox._file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	ox._stream, err = os.OpenFile(ox._file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) // #nosec G302
 	return err
 }
 

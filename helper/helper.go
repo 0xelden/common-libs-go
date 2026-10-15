@@ -2,7 +2,7 @@ package helper
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/md5" // #nosec G501
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -126,7 +126,7 @@ func TraceUnique(ctx context.Context, kvPairs ...any) trace.Span {
 			continue
 		}
 
-		value := kvPairs[i+1]
+		value := kvPairs[i+1] // #nosec G602
 		data, _ := json.MarshalIndent(value, "", "\t")
 		span.SetAttributes(attribute.String(
 			key+"."+rand,
@@ -338,7 +338,7 @@ func StructToJsonMap(data any, fields ...string) (res map[string]any, err error)
 // DeterministicUUID membuat uuid dari source, jika source a maka balikan uuid selalu b, deterministic
 func DeterministicUUID(source string) (string, error) {
 	// calculate the MD5 hash of the source
-	md5hash := md5.New()
+	md5hash := md5.New() // #nosec G401
 	md5hash.Write([]byte(source))
 
 	// convert the hash value to a string

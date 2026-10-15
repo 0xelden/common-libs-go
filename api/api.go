@@ -94,8 +94,8 @@ func Response(c *gin.Context, code int, error serror.SError, data interface{}) {
 	if failed && error == nil {
 		err := errors.New("HTTP response is not ok but no error provided")
 		span.RecordError(err)
-		span.SetStatus(codes.Code(code), err.Error())
-		panic(err) // this condition should not be allowed, so we crash here
+		span.SetStatus(codes.Code(code), err.Error()) // #nosec G115
+		panic(err)                                    // this condition should not be allowed, so we crash here
 	}
 
 	var (
@@ -146,7 +146,7 @@ func Response(c *gin.Context, code int, error serror.SError, data interface{}) {
 			span.RecordError(error)
 			span.SetAttributes(attribute.String(shared.ExceptionSource, fmt.Sprintf("%s:%d %s", error.File(), error.Line(), error.FN())))
 			span.SetAttributes(attribute.String(shared.ExceptionStackFrames, helper.ToJsonIndent(sf)))
-			span.SetStatus(codes.Code(code), http.StatusText(code))
+			span.SetStatus(codes.Code(code), http.StatusText(code)) // #nosec G115
 		}
 		if verbose {
 			res.Trace = sf

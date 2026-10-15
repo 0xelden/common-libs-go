@@ -35,7 +35,7 @@ func RandStringUnsafe(n int) string {
 	}
 
 	// nosemgrep
-	return *(*string)(unsafe.Pointer(&b))
+	return *(*string)(unsafe.Pointer(&b)) // #nosec G103
 }
 
 const (

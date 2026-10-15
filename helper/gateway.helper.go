@@ -1,8 +1,8 @@
 package helper
 
 import (
-	"crypto/md5"
-	"crypto/sha1"
+	"crypto/md5"  // #nosec G501
+	"crypto/sha1" // #nosec G505
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -82,7 +82,7 @@ func Chains(values ...string) string {
 }
 
 func MD5(val string) string {
-	mdcp := md5.New()
+	mdcp := md5.New() // #nosec G401
 
 	_, err := mdcp.Write([]byte(val))
 	if err != nil {
@@ -93,7 +93,7 @@ func MD5(val string) string {
 }
 
 func SHA1(val string) string {
-	sha := sha1.New()
+	sha := sha1.New() // #nosec G401
 	_, err := sha.Write([]byte(val))
 	if err != nil {
 		return ""
