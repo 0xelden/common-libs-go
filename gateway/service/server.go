@@ -105,7 +105,11 @@ func (svr Server) Write() error {
 }
 
 func (svr Server) Stop() error {
-	svr.Stop()
+	svr.instance.Stop()
+
+	if svr.listener == nil {
+		return nil
+	}
 
 	err := svr.listener.Close()
 	if err != nil {
