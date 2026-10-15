@@ -165,7 +165,7 @@ func (o objStorage) ZipObjects(ctx context.Context, bucket string, form objstore
 	//goland:noinspection GoUnhandledErrorResult
 	defer os.RemoveAll(tmpDir)
 
-	err := os.MkdirAll(tmpDir, os.ModePerm)
+	err := os.MkdirAll(tmpDir, 0750)
 	if err != nil {
 		return nil, serror.NewFromError(err)
 	}
@@ -176,8 +176,13 @@ func (o objStorage) ZipObjects(ctx context.Context, bucket string, form objstore
 			return nil, serr
 		}
 
+		name = filepath.Base(name)
+		if name == "." || name == ".." || name == string(filepath.Separator) {
+			return nil, serror.Newf("invalid object name for %s", objID)
+		}
+
 		filePath := filepath.Join(tmpDir, name)
-		file, err := os.Create(filePath)
+		file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600) // #nosec G304
 		if err != nil {
 			return nil, serror.NewFromError(err)
 		}
@@ -198,7 +203,7 @@ func (o objStorage) ZipObjects(ctx context.Context, bucket string, form objstore
 	}
 
 	for _, file := range files {
-		f, err := os.Open(filepath.Join(tmpDir, file.Name()))
+		f, err := os.Open(filepath.Join(tmpDir, file.Name())) // #nosec G304
 		if err != nil {
 			return nil, serror.NewFromError(err)
 		}
