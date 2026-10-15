@@ -30,8 +30,7 @@ func NewServer(cfg Config, reg RegistryWriter) (*Server, error) {
 	return &Server{
 		cfg: cfg,
 		instance: grpc.NewServer(
-			grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
-			grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),
+			grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		),
 		listener: listener,
 		reg:      reg,
@@ -42,8 +41,7 @@ func NewServerHttp(cfg Config, reg RegistryWriter) (*Server, error) {
 	return &Server{
 		cfg: cfg,
 		instance: grpc.NewServer(
-			grpc.UnaryInterceptor(otelgrpc.UnaryServerInterceptor()),
-			grpc.StreamInterceptor(otelgrpc.StreamServerInterceptor()),
+			grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		),
 		reg: reg,
 	}, nil
