@@ -2,7 +2,7 @@ package helper
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/md5" // #nosec G501
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xelden/common-libs-go/serror"
 	"github.com/go-errors/errors"
 	"github.com/google/uuid"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/uptrace/uptrace-go/uptrace"
-	"github.com/0xelden/common-libs-go/serror"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
@@ -126,7 +126,7 @@ func TraceUnique(ctx context.Context, kvPairs ...any) trace.Span {
 			continue
 		}
 
-		value := kvPairs[i+1]
+		value := kvPairs[i+1] // #nosec G602
 		data, _ := json.MarshalIndent(value, "", "\t")
 		span.SetAttributes(attribute.String(
 			key+"."+rand,
@@ -338,7 +338,7 @@ func StructToJsonMap(data any, fields ...string) (res map[string]any, err error)
 // DeterministicUUID membuat uuid dari source, jika source a maka balikan uuid selalu b, deterministic
 func DeterministicUUID(source string) (string, error) {
 	// calculate the MD5 hash of the source
-	md5hash := md5.New()
+	md5hash := md5.New() // #nosec G401
 	md5hash.Write([]byte(source))
 
 	// convert the hash value to a string
@@ -386,7 +386,6 @@ func ToJson(data any) string {
 	return string(res)
 }
 
-
 func TraceURL(span trace.Span) string {
 	addr := Env("UPTRACE_WEB")
 	if _, err := url.Parse(addr); err != nil {
@@ -424,7 +423,6 @@ func JoinPath(base string, comps ...string) string {
 	parsedBase.Path = joinedPath
 	return parsedBase.String()
 }
-
 
 // NormalizedEnvLower returns the lower-case value of an environment
 // variable built from a base key and a suffix.

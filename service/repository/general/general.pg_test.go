@@ -1,4 +1,4 @@
-﻿package general
+package general
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	sq "github.com/Masterminds/squirrel"
-	_ "github.com/joho/godotenv/autoload"
 	"github.com/0xelden/common-libs-go/connection"
 	"github.com/0xelden/common-libs-go/db"
 	"github.com/0xelden/common-libs-go/helper"
@@ -15,6 +13,8 @@ import (
 	"github.com/0xelden/common-libs-go/models"
 	"github.com/0xelden/common-libs-go/serror"
 	"github.com/0xelden/common-libs-go/shared"
+	sq "github.com/Masterminds/squirrel"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func Test_generalRepo_IncrementFields(t *testing.T) {

@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/0xelden/common-libs-go/api"
 	"github.com/0xelden/common-libs-go/db"
 	"github.com/0xelden/common-libs-go/serror"
+	sq "github.com/Masterminds/squirrel"
 )
 
 type (

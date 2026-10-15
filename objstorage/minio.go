@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/minio/minio-go/v7"
 	"github.com/0xelden/common-libs-go/serror"
+	"github.com/minio/minio-go/v7"
 )
 
 type minioClient struct {

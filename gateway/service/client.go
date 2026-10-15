@@ -77,8 +77,7 @@ func NewComposite(resolv resolver.Resolver, cfg Config) (*Composite, error) {
 			connURL,
 			grpc.WithDefaultServiceConfig(grpcServiceConfig),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-			grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		)
 		if err != nil {
 			if i < max {

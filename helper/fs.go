@@ -11,7 +11,7 @@ import (
 func MoveFile(srcPath, dstPath string) serror.SError {
 	// Ensure the destination directory exists
 	dstDir := filepath.Dir(dstPath)
-	if err := os.MkdirAll(dstDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(dstDir, os.ModePerm); err != nil { // #nosec G301
 		return serror.Newf("could not create destination directory: %v", err)
 	}
 

@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-errors/errors"
 	"github.com/0xelden/common-libs-go/helper/sqlstring"
 	"github.com/0xelden/common-libs-go/logger"
+	"github.com/go-errors/errors"
 )
 
 // EscapeSQL escape sql string untuk menghindari sql injection attack
@@ -297,23 +297,23 @@ func PgDump(ctx context.Context, dbName string) error {
 		dumpDir = "dump"
 	}
 
-	if err := os.MkdirAll(dumpDir, 0755); err != nil {
+	if err := os.MkdirAll(dumpDir, 0750); err != nil { // #nosec G703
 		return fmt.Errorf("failed to create dump directory: %v", err)
 	}
 
 	// Generate timestamped file path
 	timestamp := time.Now().Format("20060102_150405")
-	filePath := filepath.Join(dumpDir, fmt.Sprintf("%s_dump_%s.sql.gz", dbName, timestamp))
+	filePath := filepath.Join(dumpDir, fmt.Sprintf("%s_dump_%s.sql.gz", filepath.Base(dbName), timestamp))
 
 	// Use direct execution instead of `bash -c`
-	cmd := exec.Command("pg_dump", "-h", dbHost, "-p", dbPort, "-U", dbUser, "-d", dbName)
+	cmd := exec.Command("pg_dump", "-h", dbHost, "-p", dbPort, "-U", dbUser, "-d", dbName) // #nosec G204 G702
 	cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", dbPwd))
 
 	// Pipe output to gzip
 	gzipCmd := exec.Command("gzip")
 
 	// Create output file
-	outFile, err := os.Create(filePath)
+	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600) // #nosec G304 G703
 	if err != nil {
 		return fmt.Errorf("failed to create dump file: %v", err)
 	}
@@ -384,7 +384,7 @@ func CleanOldDumps(keepN int, dumpDir, dbName string) error {
 	if len(dumpFiles) > keepN {
 		for _, file := range dumpFiles[keepN:] {
 			fullPath := filepath.Join(dumpDir, file.Name())
-			if err := os.Remove(fullPath); err != nil {
+			if err := os.Remove(fullPath); err != nil { // #nosec G703
 				logger.Infof("Failed to delete %s: %v", fullPath, err)
 			} else {
 				logger.Infof("Deleted old dump: %s", fullPath)

@@ -1,0 +1,42 @@
+name: Security
+
+on:
+  push:
+    branches: [dev, qa, main]
+  pull_request:
+  schedule:
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: Vulnerable dependencies (govulncheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
+  gosec:
+    name: Static security analysis (gosec)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: gosec
+        run: >-
+          go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0 -quiet
+          -exclude-rules="cmd/gen-.*:G301,G302,G304,G306"
+          ./...

@@ -6,12 +6,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/0xelden/common-libs-go/helper"
+	"github.com/0xelden/common-libs-go/shared"
 	"github.com/ganigeorgiev/fexpr"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-errors/errors"
-	"github.com/0xelden/common-libs-go/helper"
-	"github.com/0xelden/common-libs-go/shared"
 )
 
 const (
@@ -26,7 +26,7 @@ type IndexParam struct {
 	Filter   string   `query:"filter" form:"filter" json:"filter"`
 	Sort     []string `query:"sort" form:"sort" json:"sort"`
 	Column   []string `query:"column" form:"column" json:"column"`
-	SortStmt string `query:"-" form:"-" json:"-"`
+	SortStmt string   `query:"-" form:"-" json:"-"`
 
 	// Filters holds raw SQL fragments spliced into the WHERE clause. It is not
 	// bindable from the request; build entries with AddFilter rather than
@@ -94,7 +94,7 @@ func NewIndexParam(ctx *gin.Context, binding binding.Binding) (*IndexParam, erro
 	return param, nil
 }
 
-// NewIndexParamWithContext constructor digunakan untuk internal use di dalam service 
+// NewIndexParamWithContext constructor digunakan untuk internal use di dalam service
 func NewIndexParamWithContext(ctx context.Context, param *IndexParam) (*IndexParam, error) {
 	param.FilterMap = map[string]string{}
 	omitTotal := helper.ContextGetString(ctx, shared.OmitTotal) == "1"

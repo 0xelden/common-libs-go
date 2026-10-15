@@ -6,8 +6,8 @@ import (
 	"io"
 	"testing"
 
-	_ "github.com/joho/godotenv/autoload"
 	"github.com/0xelden/common-libs-go/helper"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func TestObjectInfoMeta(t *testing.T) {

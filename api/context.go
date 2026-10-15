@@ -3,10 +3,10 @@ package api
 import (
 	"context"
 
-	"github.com/gin-gonic/gin"
 	"github.com/0xelden/common-libs-go/db"
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/shared"
+	"github.com/gin-gonic/gin"
 )
 
 // The array is sized to exactly the pairs below: any spare slots would be

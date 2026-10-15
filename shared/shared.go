@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/0xelden/common-libs-go/types"
 	"github.com/go-playground/validator/v10"
 	"github.com/gookit/validate"
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/0xelden/common-libs-go/types"
 )
 
 var (

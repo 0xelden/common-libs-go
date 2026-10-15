@@ -151,7 +151,7 @@ func (rc requestContext) PostForm(key string) string {
 		Body: stringReadCloser,
 	}
 
-	req.ParseMultipartForm(0)
+	_ = req.ParseMultipartForm(0)
 	for k, v := range req.Form {
 		re := regexp.MustCompile("([a-z_]+)" + "(\\[([a-z0-9_]+)\\])?")
 		matches := re.FindStringSubmatch(k)
@@ -185,7 +185,7 @@ func (rc requestContext) DefaultPostForm(key string, def string) string {
 		Body: stringReadCloser,
 	}
 
-	req.ParseMultipartForm(0)
+	_ = req.ParseMultipartForm(0)
 	for k, v := range req.Form {
 		re := regexp.MustCompile("([a-z_]+)" + "(\\[([a-z0-9_]+)\\])?")
 		matches := re.FindStringSubmatch(k)
@@ -408,7 +408,7 @@ func (ctx responseContext) buildResponse(gCtx context.Context) (*packets.Respons
 
 	return &packets.Response{
 		Server: host,
-		Status: int32(ctx.status),
+		Status: int32(ctx.status), // #nosec G115
 		Body:   body,
 	}, nil
 }

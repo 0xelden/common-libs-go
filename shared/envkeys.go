@@ -22,7 +22,7 @@ const (
 	AppOpenEndpoint = "APP_OPEN_ENDPOINT"
 	AppBasepoint    = "APP_BASEPOINT"
 	AppRegistryAddr = "APP_REGISTRY_ADDR"
-	AppRegistryPwd  = "APP_REGISTRY_PWD"
+	AppRegistryPwd  = "APP_REGISTRY_PWD" // #nosec G101
 	AppTimezone     = "APP_TIMEZONE"
 	AppNamespace    = "APP_NAMESPACE"
 	AppCluster      = "APP_CLUSTER"

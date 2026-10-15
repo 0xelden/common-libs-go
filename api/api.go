@@ -1,16 +1,16 @@
-﻿package api
+package api
 
 import (
 	"fmt"
 	"net/http"
 
+	"github.com/0xelden/common-libs-go/db"
+	"github.com/0xelden/common-libs-go/helper"
+	"github.com/0xelden/common-libs-go/serror"
+	"github.com/0xelden/common-libs-go/shared"
 	"github.com/gin-gonic/gin"
 	"github.com/go-errors/errors"
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/0xelden/common-libs-go/db"
-	"github.com/0xelden/common-libs-go/helper"
-	"github.com/0xelden/common-libs-go/shared"
-	"github.com/0xelden/common-libs-go/serror"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -94,8 +94,8 @@ func Response(c *gin.Context, code int, error serror.SError, data interface{}) {
 	if failed && error == nil {
 		err := errors.New("HTTP response is not ok but no error provided")
 		span.RecordError(err)
-		span.SetStatus(codes.Code(code), err.Error())
-		panic(err) // this condition should not be allowed, so we crash here
+		span.SetStatus(codes.Code(code), err.Error()) // #nosec G115
+		panic(err)                                    // this condition should not be allowed, so we crash here
 	}
 
 	var (
@@ -146,7 +146,7 @@ func Response(c *gin.Context, code int, error serror.SError, data interface{}) {
 			span.RecordError(error)
 			span.SetAttributes(attribute.String(shared.ExceptionSource, fmt.Sprintf("%s:%d %s", error.File(), error.Line(), error.FN())))
 			span.SetAttributes(attribute.String(shared.ExceptionStackFrames, helper.ToJsonIndent(sf)))
-			span.SetStatus(codes.Code(code), http.StatusText(code))
+			span.SetStatus(codes.Code(code), http.StatusText(code)) // #nosec G115
 		}
 		if verbose {
 			res.Trace = sf

@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-errors/errors"
 	"github.com/0xelden/common-libs-go/connection"
+	"github.com/go-errors/errors"
 )
 
 type config struct {

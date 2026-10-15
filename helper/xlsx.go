@@ -4,9 +4,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xelden/common-libs-go/serror"
 	"github.com/araddon/dateparse"
 	"github.com/tealeg/xlsx"
-	"github.com/0xelden/common-libs-go/serror"
 )
 
 func ParseCellAsFloat64(sheet *xlsx.Sheet, row, col int) (value float64, serr serror.SError) {

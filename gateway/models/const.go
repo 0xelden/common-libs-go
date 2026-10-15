@@ -3,7 +3,7 @@ package models
 const (
 	ClientIDHeaderKey      = "x-gateway-key"
 	TimestampHeaderKey     = "x-gateway-timestamp"
-	SignatureHeaderKey      = "x-gateway-signature"
+	SignatureHeaderKey     = "x-gateway-signature"
 	ContentTypeHeaderKey   = "content-type"
 	AuthorizationHeaderKey = "authorization"
 	UserAgentHeaderKey     = "user-agent"

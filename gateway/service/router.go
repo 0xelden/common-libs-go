@@ -89,7 +89,7 @@ func (svc *Service) Docs(path string) serror.SError {
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		var err error
 
-		byt, err = ioutil.ReadFile(path)
+		byt, err = ioutil.ReadFile(path) // #nosec G304
 		if err != nil {
 			return serror.NewFromError(err)
 		}
