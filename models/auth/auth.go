@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/shared"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 // AccessTokenClaims is the lean claim set actually issued by the auth service

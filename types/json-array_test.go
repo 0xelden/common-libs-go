@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	sq "github.com/Masterminds/squirrel"
-	"github.com/go-playground/form"
 	"github.com/0xelden/common-libs-go/connection"
 	"github.com/0xelden/common-libs-go/db"
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/service/repository/general"
 	"github.com/0xelden/common-libs-go/types"
+	sq "github.com/Masterminds/squirrel"
+	"github.com/go-playground/form"
 	. "gopkg.in/go-playground/assert.v1"
 )
 

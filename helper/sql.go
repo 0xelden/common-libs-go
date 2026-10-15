@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-errors/errors"
 	"github.com/0xelden/common-libs-go/helper/sqlstring"
 	"github.com/0xelden/common-libs-go/logger"
+	"github.com/go-errors/errors"
 )
 
 // EscapeSQL escape sql string untuk menghindari sql injection attack

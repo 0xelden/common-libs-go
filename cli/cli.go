@@ -6,9 +6,9 @@ import (
 	"runtime"
 	"text/tabwriter"
 
+	"github.com/0xelden/common-libs-go/helper"
 	_ "github.com/joho/godotenv/autoload"
 	flag "github.com/spf13/pflag"
-	"github.com/0xelden/common-libs-go/helper"
 )
 
 var (

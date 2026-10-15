@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/0xelden/common-libs-go/helper"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-errors/errors"
-	"github.com/0xelden/common-libs-go/helper"
 )
 
 //go:generate easytags $GOFILE query,form,json

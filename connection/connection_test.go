@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	_ "github.com/joho/godotenv/autoload"
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/serror"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func TestConnectMinio(t *testing.T) {

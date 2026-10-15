@@ -11,8 +11,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gin-gonic/gin"
-	"github.com/minio/minio-go/v7"
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/logger"
 	"github.com/0xelden/common-libs-go/models/objstore"
@@ -20,6 +18,8 @@ import (
 	"github.com/0xelden/common-libs-go/serror"
 	"github.com/0xelden/common-libs-go/service"
 	"github.com/0xelden/common-libs-go/shared"
+	"github.com/gin-gonic/gin"
+	"github.com/minio/minio-go/v7"
 )
 
 type objStorage struct {

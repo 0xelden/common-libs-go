@@ -1,4 +1,4 @@
-﻿package general
+package general
 
 import (
 	"context"
@@ -6,16 +6,16 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/0xelden/common-libs-go/db"
+	"github.com/0xelden/common-libs-go/helper"
+	"github.com/0xelden/common-libs-go/models"
+	"github.com/0xelden/common-libs-go/serror"
+	"github.com/0xelden/common-libs-go/service"
+	"github.com/0xelden/common-libs-go/shared"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/blockloop/scan/v2"
 	"github.com/lann/builder"
 	"github.com/lib/pq"
-	"github.com/0xelden/common-libs-go/db"
-	"github.com/0xelden/common-libs-go/helper"
-	"github.com/0xelden/common-libs-go/models"
-	"github.com/0xelden/common-libs-go/service"
-	"github.com/0xelden/common-libs-go/shared"
-	"github.com/0xelden/common-libs-go/serror"
 )
 
 var (

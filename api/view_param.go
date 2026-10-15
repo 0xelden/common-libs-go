@@ -1,9 +1,9 @@
 package api
 
 import (
+	"github.com/0xelden/common-libs-go/shared"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
-	"github.com/0xelden/common-libs-go/shared"
 )
 
 //go:generate easytags $GOFILE query,form,json

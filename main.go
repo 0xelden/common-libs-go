@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 
-	_ "github.com/joho/godotenv/autoload"
 	_ "github.com/0xelden/common-libs-go/cli"
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/logger"
 	"github.com/0xelden/common-libs-go/serror"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {

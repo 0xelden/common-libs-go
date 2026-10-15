@@ -1,16 +1,16 @@
-﻿package api
+package api
 
 import (
 	"fmt"
 	"net/http"
 
+	"github.com/0xelden/common-libs-go/db"
+	"github.com/0xelden/common-libs-go/helper"
+	"github.com/0xelden/common-libs-go/serror"
+	"github.com/0xelden/common-libs-go/shared"
 	"github.com/gin-gonic/gin"
 	"github.com/go-errors/errors"
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/0xelden/common-libs-go/db"
-	"github.com/0xelden/common-libs-go/helper"
-	"github.com/0xelden/common-libs-go/shared"
-	"github.com/0xelden/common-libs-go/serror"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"

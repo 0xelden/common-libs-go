@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0xelden/common-libs-go/serror"
 	"github.com/go-errors/errors"
 	"github.com/google/uuid"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/uptrace/uptrace-go/uptrace"
-	"github.com/0xelden/common-libs-go/serror"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
@@ -386,7 +386,6 @@ func ToJson(data any) string {
 	return string(res)
 }
 
-
 func TraceURL(span trace.Span) string {
 	addr := Env("UPTRACE_WEB")
 	if _, err := url.Parse(addr); err != nil {
@@ -424,7 +423,6 @@ func JoinPath(base string, comps ...string) string {
 	parsedBase.Path = joinedPath
 	return parsedBase.String()
 }
-
 
 // NormalizedEnvLower returns the lower-case value of an environment
 // variable built from a base key and a suffix.

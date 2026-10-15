@@ -5,9 +5,9 @@ import (
 	"io"
 	"mime/multipart"
 
-	"github.com/gin-gonic/gin"
 	"github.com/0xelden/common-libs-go/models/objstore"
 	"github.com/0xelden/common-libs-go/serror"
+	"github.com/gin-gonic/gin"
 )
 
 type ObjectStorageUsecase interface {

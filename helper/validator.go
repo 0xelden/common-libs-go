@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/mail"
 
-	"github.com/google/uuid"
 	"github.com/0xelden/common-libs-go/serror"
+	"github.com/google/uuid"
 )
 
 // IsValidUUID check string for a valid uuid
