@@ -3,7 +3,7 @@ package controller
 import (
 	"fmt"
 
-	redis "github.com/go-redis/redis/v7"
+	redis "github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

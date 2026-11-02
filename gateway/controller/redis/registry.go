@@ -1,11 +1,12 @@
 package redis
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 
-	redis "github.com/go-redis/redis/v7"
+	redis "github.com/redis/go-redis/v9"
 
 	"github.com/0xelden/common-libs-go/gateway/models"
 	"github.com/0xelden/common-libs-go/gateway/service"
@@ -27,7 +28,7 @@ func NewRegistry(key string, conn *Connection) *Registry {
 }
 
 func (reg Registry) WriteRaw(key string, body []byte) error {
-	_, err := reg.conn.HSet(reg.key, key, body).Result()
+	_, err := reg.conn.HSet(context.Background(), reg.key, key, body).Result()
 	if err != nil {
 		return fmt.Errorf("while writing to redis: %v", err)
 	}
@@ -45,7 +46,7 @@ func (reg Registry) Write(cfg service.Config) error {
 }
 
 func (reg Registry) PublishRaw(body []byte) error {
-	_, err := reg.conn.Publish(fmt.Sprintf("%s:channel", reg.key), body).Result()
+	_, err := reg.conn.Publish(context.Background(), fmt.Sprintf("%s:channel", reg.key), body).Result()
 	if err != nil {
 		return fmt.Errorf("while publishing to redis: %v", err)
 	}
@@ -63,7 +64,7 @@ func (reg Registry) Publish(cfg service.Config) error {
 }
 
 func (reg Registry) GetByKeyRaw(key string) ([]byte, error) {
-	res, err := reg.conn.HGet(reg.key, key).Result()
+	res, err := reg.conn.HGet(context.Background(), reg.key, key).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, service.ErrConfigNotFound
@@ -94,7 +95,7 @@ func (reg Registry) GetByKey(key string) (service.Config, error) {
 func (reg Registry) GetRaw() (map[string][]byte, error) {
 	rows := map[string][]byte{}
 
-	res, err := reg.conn.HGetAll(reg.key).Result()
+	res, err := reg.conn.HGetAll(context.Background(), reg.key).Result()
 	if err != nil {
 		return nil, fmt.Errorf("while reading from redis: %v", err)
 	}
@@ -127,7 +128,7 @@ func (reg Registry) Get() ([]service.Config, error) {
 }
 
 func (reg Registry) Keys() ([]string, error) {
-	res, err := reg.conn.HKeys(reg.key).Result()
+	res, err := reg.conn.HKeys(context.Background(), reg.key).Result()
 	if err != nil {
 		return nil, fmt.Errorf("while reading from redis: %v", err)
 	}
@@ -137,7 +138,7 @@ func (reg Registry) Keys() ([]string, error) {
 
 func (reg Registry) WatchRaw() (<-chan []byte, error) {
 	rc := make(chan []byte)
-	sub := reg.conn.PSubscribe(fmt.Sprintf("%s:channel", reg.key))
+	sub := reg.conn.PSubscribe(context.Background(), fmt.Sprintf("%s:channel", reg.key))
 	ch := sub.Channel()
 
 	go func(ch <-chan *redis.Message, cch chan<- []byte) {
@@ -177,7 +178,7 @@ func (reg Registry) Watch() (<-chan service.Config, error) {
 func (reg Registry) GetRedisByID(id models.CompositeID) (models.Composite, error) {
 	var composite models.Composite
 
-	res, err := reg.conn.HGet(fmt.Sprintf("%s:composite", reg.key), string(id)).Result()
+	res, err := reg.conn.HGet(context.Background(), fmt.Sprintf("%s:composite", reg.key), string(id)).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return composite, errors.New("composite not found")

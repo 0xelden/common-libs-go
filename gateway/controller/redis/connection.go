@@ -1,9 +1,10 @@
 package redis
 
 import (
+	"context"
 	"fmt"
 
-	redis "github.com/go-redis/redis/v7"
+	redis "github.com/redis/go-redis/v9"
 )
 
 type Connection struct {
@@ -12,7 +13,7 @@ type Connection struct {
 
 func NewConnection(opts *redis.Options) (*Connection, error) {
 	conn := redis.NewClient(opts)
-	_, err := conn.Ping().Result()
+	_, err := conn.Ping(context.Background()).Result()
 	if err != nil {
 		return nil, fmt.Errorf("while pinging redis: %v", err)
 	}
