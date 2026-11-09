@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/0xelden/common-libs-go/types"
@@ -72,8 +73,76 @@ func ValidateValuer(field reflect.Value) interface{} {
 
 func ValidateStruct(scene string, s any) error {
 	v := validate.Struct(s)
+	if fields := v.AtScene(scene).SceneFields(); len(fields) > 0 {
+		v.WithScenes(validate.SValues{scene: withEmbeddedScenePaths(reflect.TypeOf(s), fields)})
+	}
 	if v.Validate(scene) {
 		return nil
 	}
 	return v.Errors
+}
+
+// withEmbeddedScenePaths adds the embedded path of every scene field that is
+// promoted from an embedded struct. validate registers such a rule under
+// "<Embedded>.<Field>" (e.g. "UserDto.Email"), while ConfigValidation scenes
+// name the promoted field ("Email"), so the scene filter never matched and
+// the rule was silently skipped.
+func withEmbeddedScenePaths(t reflect.Type, fields []string) []string {
+	embedded := embeddedStructs(t, "")
+	if len(embedded) == 0 {
+		return fields
+	}
+	out := append([]string(nil), fields...)
+	for _, field := range fields {
+		head, _, _ := strings.Cut(field, ".")
+		for path, et := range embedded {
+			if hasDirectField(et, head) {
+				out = append(out, path+"."+field)
+			}
+		}
+	}
+	return out
+}
+
+// embeddedStructs maps the dotted path of every (possibly nested) embedded
+// struct in t to its type.
+func embeddedStructs(t reflect.Type, prefix string) map[string]reflect.Type {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return nil
+	}
+	found := map[string]reflect.Type{}
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if !f.Anonymous {
+			continue
+		}
+		ft := f.Type
+		for ft.Kind() == reflect.Pointer {
+			ft = ft.Elem()
+		}
+		if ft.Kind() != reflect.Struct {
+			continue
+		}
+		path := f.Name
+		if prefix != "" {
+			path = prefix + "." + f.Name
+		}
+		found[path] = ft
+		for p, nt := range embeddedStructs(ft, path) {
+			found[p] = nt
+		}
+	}
+	return found
+}
+
+func hasDirectField(t reflect.Type, name string) bool {
+	for i := 0; i < t.NumField(); i++ {
+		if f := t.Field(i); !f.Anonymous && f.Name == name {
+			return true
+		}
+	}
+	return false
 }
