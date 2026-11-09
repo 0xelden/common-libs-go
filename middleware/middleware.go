@@ -17,7 +17,7 @@ import (
 	uap "github.com/Gohelraj/go_ip_device_parser"
 	"github.com/gin-gonic/gin"
 	"github.com/go-errors/errors"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel/attribute"

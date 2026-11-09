@@ -4,7 +4,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 const (
@@ -30,7 +30,7 @@ type Composite struct {
 }
 
 type TokenClaims struct {
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 	UserID         string        `json:"id"`
 	Username       string        `json:"username"`
 	IsOrgAdmin     int           `json:"isorgadmin"`

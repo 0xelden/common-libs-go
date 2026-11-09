@@ -9,7 +9,7 @@ import (
 
 	"github.com/0xelden/common-libs-go/types"
 	"github.com/go-playground/validator/v10"
-	"github.com/gookit/validate"
+	"github.com/gookit/validate/v2"
 	_ "github.com/joho/godotenv/autoload"
 )
 
@@ -26,6 +26,13 @@ var (
 )
 
 func init() {
+	// validate/v2 only descends into a named sub-struct whose field carries a
+	// validate tag; keep v1's always-cascade so existing models (which embed
+	// their Dto and nest structs untagged) keep every rule they had.
+	validate.Config(func(o *validate.GlobalOption) {
+		o.CheckSubOnParentMarked = false
+	})
+
 	_ = Validate.RegisterValidation("dtvalue", func(fl validator.FieldLevel) bool {
 		switch typ := fl.Field().Interface().(type) {
 		case *time.Time:

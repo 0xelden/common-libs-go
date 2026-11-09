@@ -19,10 +19,10 @@ require (
 	github.com/go-playground/form v3.1.4+incompatible
 	github.com/go-playground/validator/v10 v10.22.1
 	github.com/go-sql-driver/mysql v1.8.0
-	github.com/golang-jwt/jwt/v4 v4.5.2
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
-	github.com/gookit/validate v1.5.7
+	github.com/gookit/validate/v2 v2.0.3
 	github.com/hibiken/asynq v0.24.1
 	github.com/jackc/pgtype v1.14.3
 	github.com/joho/godotenv v1.5.1
@@ -67,7 +67,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/gookit/filter v1.2.3 // indirect
-	github.com/gookit/goutil v0.7.4 // indirect
+	github.com/gookit/goutil v0.8.6 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
