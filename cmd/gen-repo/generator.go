@@ -105,7 +105,7 @@ func buildModelFile(table *Table, existingTags map[string]map[string]string) str
 		}
 		dtoFields = append(dtoFields, fmt.Sprintf("\t%s %s %s", fieldName, fieldType, tag))
 	}
-	imports["github.com/gookit/validate"] = struct{}{}
+	imports["github.com/gookit/validate/v2"] = struct{}{}
 	imports["github.com/0xelden/common-libs-go/shared"] = struct{}{}
 	createValidationFields := buildCreateValidationFields(table)
 

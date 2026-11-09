@@ -9,7 +9,7 @@ import (
 
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/shared"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // AccessTokenClaims is the lean claim set actually issued by the auth service
@@ -120,8 +120,11 @@ type SendOtpResult struct {
 
 // ParseToken parses and validates a JWT signed with the JWT_SECRET env var
 // (shared.JwtSecret), rejecting tokens signed with anything other than an
-// HMAC algorithm (algorithm confusion protection).
+// HMAC algorithm (algorithm confusion protection). jwt/v5 stopped rejecting
+// tokens issued in the future by default, so WithIssuedAt restores the v4
+// behavior; callers' options are applied after it.
 func ParseToken(token string, claims jwt.Claims, options ...jwt.ParserOption) error {
+	options = append([]jwt.ParserOption{jwt.WithIssuedAt()}, options...)
 	tkn, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
