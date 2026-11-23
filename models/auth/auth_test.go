@@ -5,23 +5,18 @@ import (
 	"testing"
 )
 
-// sample mirrors the shape uzzeet-usm-service actually writes to
-// ses-data-<user_id>: AccessTokenClaims fields flattened at the root, plus a
-// nested "company" object carrying its own apps/portals/menu tree. Only
-// company.id matters to SessionEnvelope; everything else must be ignored
-// without error.
 const sampleSessionJSON = `{
 	"user_id": "abd99dd7-1ca4-4faa-94e6-669882d60d31",
-	"username": "arifinyunianta",
-	"email": "arifinyunianta@uzeet360.com",
-	"name": "Arifin Yunianta",
+	"username": "johndoe",
+	"email": "johndoe@example.com",
+	"name": "John Doe",
 	"profile_image": "",
 	"phone_number": "",
 	"key_data": "ses-data-abd99dd7-1ca4-4faa-94e6-669882d60d31",
 	"company": {
 		"id": "3c0a1e2e-1111-4a2b-9c3d-4e5f6a7b8c9d",
-		"code": "UZT",
-		"name": "Uzzeet",
+		"code": "ACME",
+		"name": "Acme",
 		"apps": [
 			{
 				"portals": [

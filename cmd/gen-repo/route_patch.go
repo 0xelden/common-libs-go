@@ -422,7 +422,7 @@ func ensureRouteRegistrations(file *dst.File, spec httpRouteSpec) (bool, error) 
 	existingRoutes := existingRouteStatements(block)
 	changed := ensureBlockControllerPath(block, controllerPath)
 	for _, route := range spec.Routes {
-		key := routeStatementKey(route.Method, route.Path, route.FuncName)
+		key := routeStatementKey(route.Method, route.Path)
 		if _, ok := existingRoutes[key]; ok {
 			continue
 		}
@@ -837,56 +837,47 @@ func existingRouteStatements(block *dst.BlockStmt) map[string]struct{} {
 		return result
 	}
 	for _, stmt := range block.List {
-		method, routePath, funcName, ok := parseRouteStatement(stmt)
+		method, routePath, ok := parseRouteStatement(stmt)
 		if !ok {
 			continue
 		}
-		result[routeStatementKey(method, routePath, funcName)] = struct{}{}
+		result[routeStatementKey(method, routePath)] = struct{}{}
 	}
 	return result
 }
 
-func parseRouteStatement(stmt dst.Stmt) (method string, routePath string, funcName string, ok bool) {
+func parseRouteStatement(stmt dst.Stmt) (method string, routePath string, ok bool) {
 	exprStmt, ok := stmt.(*dst.ExprStmt)
 	if !ok {
-		return "", "", "", false
+		return "", "", false
 	}
 	callExpr, ok := exprStmt.X.(*dst.CallExpr)
 	if !ok {
-		return "", "", "", false
+		return "", "", false
 	}
 	methodSelector, ok := callExpr.Fun.(*dst.SelectorExpr)
-	if !ok || len(callExpr.Args) < 2 {
-		return "", "", "", false
+	if !ok || methodSelector.Sel == nil || len(callExpr.Args) < 2 {
+		return "", "", false
 	}
 	routerIdent, ok := methodSelector.X.(*dst.Ident)
 	if !ok || routerIdent.Name != "router" {
-		return "", "", "", false
+		return "", "", false
 	}
 
 	pathLiteral, ok := callExpr.Args[0].(*dst.BasicLit)
 	if !ok || pathLiteral.Kind != token.STRING {
-		return "", "", "", false
+		return "", "", false
 	}
 	unquotedPath, err := strconv.Unquote(pathLiteral.Value)
 	if err != nil {
-		return "", "", "", false
+		return "", "", false
 	}
 
-	handlerCall, ok := callExpr.Args[1].(*dst.CallExpr)
-	if !ok {
-		return "", "", "", false
-	}
-	handlerSelector, ok := handlerCall.Fun.(*dst.SelectorExpr)
-	if !ok || handlerSelector.Sel == nil {
-		return "", "", "", false
-	}
-
-	return methodSelector.Sel.Name, unquotedPath, handlerSelector.Sel.Name, true
+	return methodSelector.Sel.Name, unquotedPath, true
 }
 
-func routeStatementKey(method, routePath, funcName string) string {
-	return method + "|" + routePath + "|" + funcName
+func routeStatementKey(method, routePath string) string {
+	return strings.ToUpper(method) + "|" + routePath
 }
 
 func newModuleRouteBlock(spec httpRouteSpec) *dst.BlockStmt {

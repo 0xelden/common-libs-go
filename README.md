@@ -103,9 +103,9 @@ Key groups (see [.env.example](.env.example) for the full list):
 | Group | Variables |
 |---|---|
 | App | `APP_ENV`, `APP_TIMEZONE`, `APP_HTTP_PORT`, `APP_GRPC_PORT`, … |
-| Auth | `JWT_SECRET` |
-| Registry / Redis | `APP_REGISTRY_ADDR`, `REDIS_HOST` |
-| Database | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PWD`, `DB_NAME` |
+| Auth | `JWT_SECRET` (min 32 bytes), `JWT_ISSUER` (default `usm`), `JWT_AUDIENCE` (optional) |
+| Registry / Redis | `APP_REGISTRY_ADDR`, `REDIS_HOST`, `REDIS_PWD`, `REDIS_TLS` (default `true`), `JOB_REDIS_*` |
+| Database | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PWD`, `DB_NAME`, `DB_SSL_MODE` (default `require`) |
 | Object storage | `STORAGE_DRIVER` (`minio`/`azure`), `STORAGE_MINIO_*`, `STORAGE_AZURE_*` |
 | Tracing | `UPTRACE_DSN` |
 

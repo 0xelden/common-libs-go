@@ -35,6 +35,13 @@ type middleware struct {
 
 type Option func(*middleware)
 
+var commitID = sync.OnceValue(func() string {
+	if cli.Commit != "" {
+		return cli.Commit
+	}
+	return helper.First(helper.GitCommitID())
+})
+
 func RegisterService(httpBasePoint string, service *gin.Engine, options ...Option) error {
 	if httpBasePoint == "" {
 		return errors.New("Middleware registration failed, invalid service http basepoint")
@@ -50,6 +57,12 @@ func RegisterService(httpBasePoint string, service *gin.Engine, options ...Optio
 
 	for _, opt := range options {
 		opt(m)
+	}
+
+	if !m.disableGuards {
+		if _, err := authModels.JwtSecret(); err != nil {
+			return fmt.Errorf("Middleware registration failed: %w", err)
+		}
 	}
 
 	if !m.disableTelemetry {
@@ -191,7 +204,7 @@ func TraceRequest() gin.HandlerFunc {
 			}
 
 			// trace git commit id
-			span.SetAttributes(attribute.String("x.commit_id", helper.If(cli.Commit != "", cli.Commit, helper.First(helper.GitCommitID()))))
+			span.SetAttributes(attribute.String("x.commit_id", commitID()))
 		}
 	}
 }
@@ -286,7 +299,7 @@ func GuardRoute(publicPath ...string) gin.HandlerFunc {
 		}
 
 		claims := authModels.AccessTokenClaims{}
-		err := authModels.ParseToken(token, &claims)
+		err := authModels.ParseToken(token, &claims, authModels.AccessTokenOptions()...)
 		if err != nil {
 			msg := errors.New("Invalid token")
 			if errors.Is(err, jwt.ErrTokenExpired) {

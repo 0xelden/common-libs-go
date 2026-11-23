@@ -9,10 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// exampleSessionJSON is a single-tenant session payload: roles is a list at the
-// root and there is no "company" object at all, unlike the legacy
-// uzzeet-usm-service shape covered in auth_test.go. The user carries two roles
-// so the list path is what gets exercised, not a one-element special case.
 const exampleSessionJSON = `{
 	"user_id": "3ac71f28-9d05-4e6b-8c31-0b7f5a2e9d14",
 	"username": "dealer.editor",

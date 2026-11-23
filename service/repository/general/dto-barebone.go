@@ -8,7 +8,6 @@ import (
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/serror"
 	"github.com/0xelden/common-libs-go/service"
-	"github.com/0xelden/common-libs-go/shared"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/blockloop/scan/v2"
 	"github.com/lann/builder"
@@ -154,7 +153,7 @@ func (r *DTOBarebone[T]) insertRows(ctx context.Context, form []T, itemCallback 
 		stmt = stmt.Values(val...)
 	}
 
-	if v := helper.ContextGetString(ctx, shared.SqlSuffix); v != "" {
+	if v := sqlSuffix(ctx); v != "" {
 		stmt = stmt.Suffix(v)
 	}
 
@@ -235,7 +234,7 @@ func (r *DTOBarebone[T]) patchRows(ctx context.Context, form []T, itemCallback f
 		stmt = stmt.Set(col, caseExpr.Else(sq.Expr(pq.QuoteIdentifier(col))))
 	}
 
-	if v := helper.ContextGetString(ctx, shared.SqlSuffix); v != "" {
+	if v := sqlSuffix(ctx); v != "" {
 		stmt = stmt.Suffix(v)
 	}
 
@@ -274,7 +273,7 @@ func (r *DTOBarebone[T]) PatchRow(ctx context.Context, form T, itemCallback func
 		}
 		stmt = stmt.Set(k, v)
 	}
-	if v := helper.ContextGetString(ctx, shared.SqlSuffix); v != "" {
+	if v := sqlSuffix(ctx); v != "" {
 		stmt = stmt.Suffix(v)
 	}
 

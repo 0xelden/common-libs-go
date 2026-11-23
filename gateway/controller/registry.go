@@ -37,7 +37,7 @@ type Connection interface {
 }
 
 func InitRegistry(cfg RegistryConfig) (*Registry, error) {
-	logger.Infof("initializing registry with controller %v", cfg)
+	logger.Infof("initializing registry at %s", cfg.Address)
 	redisConn, err := redisreg.NewConnection(&redis.Options{
 		Addr:     cfg.Address,
 		Password: cfg.Password,

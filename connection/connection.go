@@ -2,6 +2,7 @@ package connection
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"fmt"
 	"os"
@@ -127,7 +128,7 @@ func ConnectPG() (*sql.DB, serror.SError) {
 		helper.Env(shared.DBPwd, ""),
 		helper.Env(shared.DBHost, ""),
 		helper.Env(shared.DBPort, "26357"),
-		helper.Env(shared.DBSSLMode, "disable"),
+		helper.Env(shared.DBSSLMode, "require"),
 	)
 }
 
@@ -148,7 +149,7 @@ func ConnectAllPgsql() (result map[string]*sql.DB, serr serror.SError) {
 			helper.Env(fmt.Sprintf("DB.%d.PWD", i), helper.Env("DB_PWD")),
 			helper.Env(fmt.Sprintf("DB.%d.HOST", i), helper.Env("DB_HOST")),
 			helper.Env(fmt.Sprintf("DB.%d.PORT", i), helper.Env("DB_PORT")),
-			helper.Env(fmt.Sprintf("DB.%d.SSL_MODE", i), helper.Env("DB_SSL_MODE", "disable")),
+			helper.Env(fmt.Sprintf("DB.%d.SSL_MODE", i), helper.Env("DB_SSL_MODE", "require")),
 		)
 		if serr != nil {
 			return nil, serr
@@ -179,7 +180,7 @@ func ConnectAllPgsqlReplica(primary map[string]*sql.DB) (result map[string]*sql.
 		helper.Env("DB_PWD"),
 		helper.Env("DB_REPLICA_HOST", helper.Env("DB_HOST")),
 		helper.Env("DB_REPLICA_PORT", helper.Env("DB_PORT")),
-		helper.Env("DB_SSL_MODE", "disable"),
+		helper.Env("DB_SSL_MODE", "require"),
 	)
 	if serr != nil {
 		return nil, serr
@@ -203,7 +204,7 @@ func ConnectAllPgsqlReplica(primary map[string]*sql.DB) (result map[string]*sql.
 			helper.Env(fmt.Sprintf("DB.%d.PWD", i), helper.Env("DB_PWD")),
 			helper.Env(fmt.Sprintf("DB.%d.REPLICA_HOST", i), host),
 			helper.Env(fmt.Sprintf("DB.%d.REPLICA_PORT", i), port),
-			helper.Env(fmt.Sprintf("DB.%d.SSL_MODE", i), helper.Env("DB_SSL_MODE", "disable")),
+			helper.Env(fmt.Sprintf("DB.%d.SSL_MODE", i), helper.Env("DB_SSL_MODE", "require")),
 		)
 		if serr != nil {
 			return nil, serr
@@ -226,14 +227,22 @@ func ConnectSqliteInmemory() (*sql.DB, serror.SError) {
 
 func ConnectRedis() (*redis.Client, serror.SError) {
 	client := redis.NewClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_HOST"),
-		Password: "",
-		DB:       0,
+		Addr:      os.Getenv("REDIS_HOST"),
+		Password:  helper.Env("REDIS_PWD", ""),
+		DB:        0,
+		TLSConfig: redisTLSConfig("REDIS_TLS"),
 	})
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		return nil, serror.NewFromError(err)
 	}
 	return client, nil
+}
+
+func redisTLSConfig(envKey string) *tls.Config {
+	if !helper.ToBool(helper.Env(envKey), true) {
+		return nil
+	}
+	return &tls.Config{MinVersion: tls.VersionTLS12}
 }
 
 // ConnectAsynq builds the *asynq.RedisClientOpt used by both worker.NewConfig
@@ -248,7 +257,7 @@ func ConnectAsynq() (*asynq.RedisClientOpt, serror.SError) {
 		port = helper.Env("JOB_REDIS_PORT", "6379")
 		pass = helper.Env("JOB_REDIS_PWD", "")
 		addr = fmt.Sprintf("%s:%s", host, port)
-		opts = &asynq.RedisClientOpt{Addr: addr, Password: pass, DB: int(db)}
+		opts = &asynq.RedisClientOpt{Addr: addr, Password: pass, DB: int(db), TLSConfig: redisTLSConfig("JOB_REDIS_TLS")}
 		insp = asynq.NewInspector(opts)
 	)
 

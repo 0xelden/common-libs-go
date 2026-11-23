@@ -212,7 +212,7 @@ func (r *DTO[T]) insertRows(ctx context.Context, form []T, itemCallback func(ind
 		stmt = stmt.Values(val...)
 	}
 
-	if v := helper.ContextGetString(ctx, shared.SqlSuffix); v != "" {
+	if v := sqlSuffix(ctx); v != "" {
 		stmt = stmt.Suffix(v)
 	}
 
@@ -334,7 +334,7 @@ func (r *DTO[T]) patchRows(ctx context.Context, form []T, itemCallback func(inde
 		stmt = stmt.Set(col, caseExpr.Else(sq.Expr(pq.QuoteIdentifier(col))))
 	}
 
-	if v := helper.ContextGetString(ctx, shared.SqlSuffix); v != "" {
+	if v := sqlSuffix(ctx); v != "" {
 		stmt = stmt.Suffix(v)
 	}
 
@@ -378,7 +378,7 @@ func (r *DTO[T]) PatchRow(ctx context.Context, form T, itemCallback func(item ma
 		}
 		stmt = stmt.Set(k, v)
 	}
-	if v := helper.ContextGetString(ctx, shared.SqlSuffix); v != "" {
+	if v := sqlSuffix(ctx); v != "" {
 		stmt = stmt.Suffix(v)
 	}
 

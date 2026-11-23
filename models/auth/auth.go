@@ -12,9 +12,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// AccessTokenClaims is the lean claim set actually issued by the auth service
-// (uzzeet-usm-service): identity fields only. Company/portal/role/menu data
-// lives in Redis at ses-data-<user_id> (see SessionEnvelope), keyed by KeyData.
 type AccessTokenClaims struct {
 	UserId       string     `form:"user_id" json:"user_id"`
 	Username     string     `form:"username" json:"username"`
@@ -42,9 +39,6 @@ type SessionRole struct {
 type SessionEnvelope struct {
 	Roles []SessionRole `json:"roles"`
 
-	// Company is the legacy multi-tenant shape written by
-	// uzzeet-usm-service. Single-tenant payloads omit it entirely, leaving it
-	// zeroed; it is kept only so those older sessions still parse.
 	Company struct {
 		Id string `json:"id"`
 	} `json:"company"`
@@ -118,18 +112,45 @@ type SendOtpResult struct {
 	Until time.Time `json:"until"`
 }
 
+const (
+	MinJwtSecretLen          = 32
+	DefaultAccessTokenIssuer = "usm"
+)
+
+// JwtSecret returns the HMAC key from JWT_SECRET, refusing one shorter than
+// MinJwtSecretLen bytes (RFC 7518 §3.2) so an empty or weak key never signs
+// or verifies a token.
+func JwtSecret() ([]byte, error) {
+	secret := helper.Env(shared.JwtSecret)
+	if len(secret) < MinJwtSecretLen {
+		return nil, fmt.Errorf("%s must be at least %d bytes, got %d", shared.JwtSecret, MinJwtSecretLen, len(secret))
+	}
+	return []byte(secret), nil
+}
+
+// AccessTokenOptions requires the access-token issuer (JWT_ISSUER, default
+// "usm") so a refresh token signed with the same key is not accepted as an
+// access token, and the audience when JWT_AUDIENCE is set.
+func AccessTokenOptions() []jwt.ParserOption {
+	options := []jwt.ParserOption{jwt.WithIssuer(helper.Env(shared.JwtIssuer, DefaultAccessTokenIssuer))}
+	if aud := helper.Env(shared.JwtAudience); aud != "" {
+		options = append(options, jwt.WithAudience(aud))
+	}
+	return options
+}
+
 // ParseToken parses and validates a JWT signed with the JWT_SECRET env var
 // (shared.JwtSecret), rejecting tokens signed with anything other than an
-// HMAC algorithm (algorithm confusion protection). jwt/v5 stopped rejecting
-// tokens issued in the future by default, so WithIssuedAt restores the v4
-// behavior; callers' options are applied after it.
+// HMAC algorithm (algorithm confusion protection) and tokens without exp.
+// jwt/v5 stopped rejecting tokens issued in the future by default, so
+// WithIssuedAt restores the v4 behavior; callers' options are applied after it.
 func ParseToken(token string, claims jwt.Claims, options ...jwt.ParserOption) error {
-	options = append([]jwt.ParserOption{jwt.WithIssuedAt()}, options...)
+	options = append([]jwt.ParserOption{jwt.WithIssuedAt(), jwt.WithExpirationRequired()}, options...)
 	tkn, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
-		return []byte(helper.Env(shared.JwtSecret)), nil
+		return JwtSecret()
 	}, options...)
 	if err != nil {
 		return err

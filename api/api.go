@@ -104,7 +104,7 @@ func Response(c *gin.Context, code int, error serror.SError, data interface{}) {
 		ctrl      = c.GetString(shared.X_Controller)
 		action    = c.GetString(shared.X_Action)
 		recording = span.IsRecording()
-		verbose   = shared.Staging || c.Query(shared.X_Trace) == "1"
+		verbose   = shared.Staging
 	)
 
 	if error != nil {

@@ -27,7 +27,9 @@ const (
 	AppNamespace    = "APP_NAMESPACE"
 	AppCluster      = "APP_CLUSTER"
 
-	JwtSecret = "JWT_SECRET"
+	JwtSecret   = "JWT_SECRET"
+	JwtIssuer   = "JWT_ISSUER"
+	JwtAudience = "JWT_AUDIENCE"
 
 	DBEngine       = "DB_ENGINE"
 	DBHost         = "DB_HOST"

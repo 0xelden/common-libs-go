@@ -51,7 +51,6 @@ const (
 	ExecuteIn             = "execute_in"
 	Default               = "default"
 	Wsk                   = "wsk"
-	SqlSuffix             = "sql_suffix"
 
 	SceneAPI            = "api"
 	SceneHTMX           = "htmx"

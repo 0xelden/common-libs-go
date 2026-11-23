@@ -1,6 +1,10 @@
 package helper
 
-import "testing"
+import (
+	"strings"
+	"sync"
+	"testing"
+)
 
 func TestRandStringUnsafe(t *testing.T) {
 	seen := map[string]int{}
@@ -11,6 +15,24 @@ func TestRandStringUnsafe(t *testing.T) {
 		}
 		seen[got] = 1
 	}
+}
+
+func TestRandStringUnsafeConcurrent(t *testing.T) {
+	var wg sync.WaitGroup
+	for g := 0; g < 32; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 1_000; i++ {
+				got := RandStringUnsafe(16)
+				if len(got) != 16 || strings.Trim(got, letterBytes) != "" {
+					t.Errorf("RandStringUnsafe() = %q", got)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func TestRandPassword(t *testing.T) {
