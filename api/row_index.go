@@ -154,11 +154,7 @@ func (r *RowIndex[Row]) List(ctx context.Context, db db.Driver, param IndexParam
 
 	offset := (param.Page - 1) * param.Size
 	if offset <= total {
-		var (
-			stmt      string
-			sort      = param.GenerateSortStmt()
-			selective = strings.Count(listQuery, "%s") == 3 && len(param.Column) > 0
-		)
+		sort := param.GenerateSortStmt()
 
 		// SortStmt can also be assigned directly by callers, bypassing
 		// generateSortStmt's quoting.
@@ -168,14 +164,7 @@ func (r *RowIndex[Row]) List(ctx context.Context, db db.Driver, param IndexParam
 
 		// Apply the same normalization for list queries that use optional clauses.
 		listQuery = r.replaceHandle(listQuery)
-
-		// handle selective column
-		if selective {
-			fields := helper.EscapeColumns(param.Column)
-			stmt = fmt.Sprintf(listQuery, filters, fields, sort)
-		} else {
-			stmt = fmt.Sprintf(listQuery, filters, sort)
-		}
+		stmt := fmt.Sprintf(listQuery, filters, sort)
 
 		rows, err := db.QueryContext(ctx, stmt, param.Size, offset)
 		if err != nil {

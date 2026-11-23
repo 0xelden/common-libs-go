@@ -26,7 +26,6 @@ type IndexParam struct {
 	Size     int      `query:"size" form:"size" json:"size"`
 	Filter   string   `query:"filter" form:"filter" json:"filter"`
 	Sort     []string `query:"sort" form:"sort" json:"sort"`
-	Column   []string `query:"column" form:"column" json:"column"`
 	SortStmt string   `query:"-" form:"-" json:"-"`
 
 	// Filters holds raw SQL fragments spliced into the WHERE clause. It is not
@@ -277,7 +276,7 @@ func (i *IndexParam) parseFilterAst(exp any) (res []string, err error) {
 	case fexpr.Expr:
 		i.trackFilterColumn(exp.Left)
 		i.trackFilterColumn(exp.Right)
-		left := helper.If(exp.Left.Type == fexpr.TokenText, helper.EscapeSQL(exp.Left.Literal), exp.Left.Literal)
+		left := helper.If(exp.Left.Type == fexpr.TokenText, helper.QuoteLiteral(exp.Left.Literal), exp.Left.Literal)
 		if exp.Left.Type == fexpr.TokenIdentifier {
 			// jsonb path support: alias.column.key[...]: cast to numeric only
 			// when compared against a number literal (null stays text/IS NULL)
@@ -299,16 +298,13 @@ func (i *IndexParam) parseFilterAst(exp any) (res []string, err error) {
 			op = " ILIKE " // case-insensitive like
 		}
 
-		right := helper.If(exp.Right.Type == fexpr.TokenText, helper.EscapeSQL(exp.Right.Literal), exp.Right.Literal)
+		right := helper.If(exp.Right.Type == fexpr.TokenText, helper.QuoteLiteral(exp.Right.Literal), exp.Right.Literal)
 
 		// detect malicious filter like 1=1 or 99=99
 		if strings.TrimSpace(strings.ToLower(left)) == strings.TrimSpace(strings.ToLower(right)) {
 			return nil, errors.New("invalid filter")
 		}
 
-		// find escaped quotes and convert it to sql format
-		left = helper.EscapeSingleQuoteSql(left)
-		right = helper.EscapeSingleQuoteSql(right)
 		join := fmt.Sprintf("%s%s%s", left, op, right)
 
 		i.FilterMap[left] = op + right
@@ -427,8 +423,4 @@ func (i *IndexParam) GenerateFilterStmt(useAndClause ...bool) string {
 	}
 
 	return prefix + strings.Join(filters, " AND ")
-}
-
-func (i *IndexParam) Select(_ context.Context) []string {
-	return i.Column
 }

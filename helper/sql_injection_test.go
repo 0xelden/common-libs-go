@@ -26,38 +26,6 @@ func TestQuoteIdentUsesSQLEscaping(t *testing.T) {
 	}
 }
 
-func TestEscapeColumnQuotesEverySegment(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		// The regression: only the last segment used to be quoted, so the
-		// prefix was emitted as raw SQL.
-		{
-			name: "malicious prefix is quoted",
-			in:   "a; DROP TABLE users; --.b",
-			want: `"a; DROP TABLE users; --"."b"`,
-		},
-		{
-			name: "malicious single segment is quoted",
-			in:   `a"; DROP TABLE users; --`,
-			want: `"a""; DROP TABLE users; --"`,
-		},
-		// Existing shapes must keep resolving identically.
-		{"alias", "po.id", `po."id"`},
-		{"three parts", "my_db.public.user", `my_db.public."user"`},
-		{"pre-quoted prefix", `"my_db".public.user`, `"my_db".public."user"`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := escapeColumn(tt.in); got != tt.want {
-				t.Errorf("escapeColumn(%q) = %s, want %s", tt.in, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestSQLFragmentHasStatementBreak(t *testing.T) {
 	tests := []struct {
 		name string

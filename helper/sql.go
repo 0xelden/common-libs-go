@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -98,15 +97,13 @@ func GenPatchStatement(table string, patchData interface{}, id ...string) (stmt 
 	return stmt, args
 }
 
-var (
-	// safeIdentRe matches an unquoted identifier that PostgreSQL parses as a
-	// plain name, so it can be emitted as-is.
-	safeIdentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_$]*$`)
-
-	// quotedIdentRe matches an identifier that is already correctly quoted,
-	// i.e. wrapped in double quotes with every inner quote doubled.
-	quotedIdentRe = regexp.MustCompile(`^"([^"]|"")*"$`)
-)
+// QuoteLiteral renders s as a PostgreSQL string literal, doubling every
+// single quote. Backslashes stay literal under standard_conforming_strings,
+// the PostgreSQL default since 9.1.
+func QuoteLiteral(s string) string {
+	s = strings.ReplaceAll(s, "\x00", "")
+	return "'" + strings.ReplaceAll(s, `'`, `''`) + "'"
+}
 
 // QuoteIdent quotes s as a PostgreSQL identifier, doubling every embedded
 // double quote.
@@ -120,69 +117,6 @@ func QuoteIdent(s string) string {
 	// NUL cannot appear in an identifier and would truncate the statement.
 	s = strings.ReplaceAll(s, "\x00", "")
 	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
-}
-
-// quoteIdentSegment renders one dot-separated segment of a column reference.
-// Bare safe identifiers and already-quoted identifiers pass through unchanged
-// so existing "alias.column" and `"schema".table.column` forms keep resolving
-// the same way; anything else is quoted, which makes it inert -- it can then
-// only ever name a (probably non-existent) column, never break out into SQL.
-func quoteIdentSegment(seg string) string {
-	if safeIdentRe.MatchString(seg) || quotedIdentRe.MatchString(seg) {
-		return seg
-	}
-	return QuoteIdent(seg)
-}
-
-// quoteLeafIdent renders the final segment of a column reference, which is
-// always quoted so that reserved words ("user", "order", "date") keep working
-// as column names. Already-quoted input is left alone to stay idempotent.
-func quoteLeafIdent(seg string) string {
-	if quotedIdentRe.MatchString(seg) {
-		return seg
-	}
-	return QuoteIdent(seg)
-}
-
-func escapeColumn(col string) string {
-	if len(col) == 0 {
-		return col
-	}
-	part := strings.Split(col, ".")
-	if len(part) == 1 {
-		return quoteLeafIdent(strings.TrimSpace(col))
-	}
-	// Every segment is checked, not just the last one: the prefix used to be
-	// copied through verbatim, so a column like "x; DROP TABLE y; --.z" ended
-	// up emitting its prefix as raw SQL.
-	last := len(part) - 1
-	for i, seg := range part {
-		trimmed := strings.TrimSpace(seg)
-		if i == last {
-			part[i] = quoteLeafIdent(trimmed)
-			continue
-		}
-		// Leading whitespace is significant to EscapeColumnStmt, which splits
-		// on "," and relies on the ", " spacing surviving the round trip.
-		part[i] = strings.TrimSuffix(seg, trimmed) + quoteIdentSegment(trimmed)
-	}
-	return strings.Join(part, ".")
-}
-
-func EscapeColumnStmt(stmt string) string {
-	cols := []string{}
-	for _, v := range strings.Split(stmt, ",") {
-		cols = append(cols, escapeColumn(v))
-	}
-	return strings.Join(cols, ",")
-}
-
-func EscapeColumns(cols []string) string {
-	res := []string{}
-	for _, v := range cols {
-		res = append(res, escapeColumn(v))
-	}
-	return strings.Join(res, ",")
 }
 
 func EqNullOrEmptyStr(key string, value *string) string {
