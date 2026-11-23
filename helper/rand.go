@@ -3,32 +3,25 @@ package helper
 import (
 	cryptoRand "crypto/rand"
 	"math/big"
-	"math/rand/v2"
 	"unsafe"
 )
 
-// https://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-go#:~:text=func%20RandStringBytesMaskImprSrcUnsafe(n,unsafe.Pointer(%26b))%0A%7D
-
 const letterBytes = "abcdefghijklmnopqrstuvwxyz0123456789"
-const (
-	letterIdxBits = 6                    // 6 bits to represent a letter index
-	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
-	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
-)
+const letterIdxMask = 1<<6 - 1
 
 func RandStringUnsafe(n int) string {
 	b := make([]byte, n)
-	// rand.Int64() generates 63 random bits, enough for letterIdxMax characters!
-	for i, cache, remain := n-1, rand.Int64(), letterIdxMax; i >= 0; {
-		if remain == 0 {
-			cache, remain = rand.Int64(), letterIdxMax
+	buf := make([]byte, n*2+8)
+	for i := 0; i < n; {
+		_, _ = cryptoRand.Read(buf)
+		for _, v := range buf {
+			if idx := int(v & letterIdxMask); idx < len(letterBytes) {
+				b[i] = letterBytes[idx]
+				if i++; i == n {
+					break
+				}
+			}
 		}
-		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
-			b[i] = letterBytes[idx]
-			i--
-		}
-		cache >>= letterIdxBits
-		remain--
 	}
 
 	// nosemgrep
