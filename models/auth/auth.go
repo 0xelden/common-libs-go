@@ -37,7 +37,8 @@ type SessionRole struct {
 // are modeled here; unrecognized fields (menu tree, permissions, etc.) are
 // ignored by json.Unmarshal.
 type SessionEnvelope struct {
-	Roles []SessionRole `json:"roles"`
+	Roles       []SessionRole `json:"roles"`
+	Permissions []string      `json:"permissions"`
 
 	Company struct {
 		Id string `json:"id"`

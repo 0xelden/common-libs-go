@@ -14,10 +14,8 @@ const (
 	X_UserEmail    = "x_user_email"
 	X_UserPhone    = "x_user_phone"
 	X_Trace        = "x_trace"
-	X_Slug         = "x_slug"
 	X_AtClaims     = "x_at_claims"
 	X_Token        = "x_token"
-	X_Level        = "x_level"
 
 	// X_RoleId is the pre-multi-role context key, which only ever carried a
 	// single role id (and in practice never got past its EmptyUuid default).

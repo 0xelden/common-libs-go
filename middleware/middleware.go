@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/0xelden/common-libs-go/acl"
 	"github.com/0xelden/common-libs-go/api"
 	"github.com/0xelden/common-libs-go/cli"
 	"github.com/0xelden/common-libs-go/connection"
@@ -78,7 +77,7 @@ func RegisterService(httpBasePoint string, service *gin.Engine, options ...Optio
 	service.Use(SetMetadata(httpBasePoint, m.noRefPath...))
 
 	if !m.disableGuards {
-		service.Use(GuardRoute(m.publicPath...))
+		service.Use(guardRoute(m.publicPath, m.builtinPath))
 	}
 
 	return nil
@@ -256,8 +255,6 @@ func SetMetadata(basepoint string, noRefURI ...string) gin.HandlerFunc {
 		if parts := strings.Split(ctx.Request.URL.Path, "/"); len(parts) > 2 {
 			ctx.Set(shared.X_Controller, parts[1])
 			ctx.Set(shared.X_Action, parts[2])
-			ctx.Set(shared.X_Slug, fmt.Sprintf("%s/%s/%s", service, parts[1], parts[2]))
-			ctx.Set(shared.X_Level, acl.ParseAccessLevel(parts[2]).String())
 		}
 	}
 }
@@ -282,9 +279,17 @@ func guardSessionRedis() *redis.Client {
 // GuardRoute guard a route with a bearer token
 // a publicPath to the login endpoint is /credential/login
 func GuardRoute(publicPath ...string) gin.HandlerFunc {
+	return guardRoute(publicPath, nil)
+}
+
+func guardRoute(publicPath, builtinPath []string) gin.HandlerFunc {
 	public := map[string]struct{}{}
 	for _, uri := range publicPath {
 		public[uri] = struct{}{}
+	}
+	builtin := map[string]struct{}{}
+	for _, uri := range builtinPath {
+		builtin[uri] = struct{}{}
 	}
 	return func(ctx *gin.Context) {
 		if _, isPublic := public[ctx.FullPath()]; isPublic {
@@ -345,6 +350,7 @@ func GuardRoute(publicPath ...string) gin.HandlerFunc {
 		// session rather than the token so a role change takes effect as soon
 		// as the session is rewritten, without waiting out the access token.
 		ctx.Set(shared.X_RoleIds, authModels.JoinRoleIds(session.RoleIds()))
+		ctx.Set(grantedPermissionsKey, grantedPermissions(session.Permissions))
 
 		if span := trace.SpanFromContext(reqCtx); span.IsRecording() {
 			span.SetAttributes(
@@ -353,36 +359,13 @@ func GuardRoute(publicPath ...string) gin.HandlerFunc {
 			)
 		}
 
-		// TODO 1.0 : uncomment to implement access control
-		// TODO: `slug` here only contains up to controller level, but `got` var can be up to action level
-
-		// ok := false
-		// got := ctx.GetString("x_slug")
-		// for _, slug := range atClaims.Access {
-		// 	segments := strings.Split(got, "/")
-
-		// 	var filteredSegments []string
-		// 	for _, segment := range segments {
-		// 		if segment != "" {
-		// 			filteredSegments = append(filteredSegments, segment)
-		// 		}
-		// 	}
-		// 	firstTwoSegments := filteredSegments
-		// 	if len(filteredSegments) > 2 {
-		// 		firstTwoSegments = filteredSegments[:2]
-		// 	}
-		// 	ctlSegments := "/" + strings.Join(firstTwoSegments, "/")
-
-		// 	if ctlSegments == slug {
-		// 		ok = true
-		// 		break
-		// 	}
-		// }
-		// if !ok {
-		// 	api.Error(ctx, errors.New("Unauthorized access to "+got), http.StatusUnauthorized)
-		// 	ctx.Abort()
-		// 	return
-		// }
-		// TODO 1.0
+		if _, ok := builtin[ctx.FullPath()]; ok {
+			return
+		}
+		if !hasAccessRule(ctx) {
+			api.Error(ctx, errors.New("route has no access rule"), http.StatusForbidden)
+			ctx.Abort()
+			return
+		}
 	}
 }

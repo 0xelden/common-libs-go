@@ -11,13 +11,12 @@ import (
 
 // The array is sized to exactly the pairs below: any spare slots would be
 // written to the context as an empty key/value pair by SetContext.
-func defaultContextValue(c *gin.Context) [22]string {
-	def := [22]string{
+func defaultContextValue(c *gin.Context) [20]string {
+	def := [20]string{
 		shared.X_Portal, c.GetString(shared.X_Portal),
 		shared.X_PortalCode, c.GetString(shared.X_PortalCode),
 		shared.X_RoleIds, c.GetString(shared.X_RoleIds),
 		shared.X_UserId, c.GetString(shared.X_UserId),
-		shared.X_Level, c.GetString(shared.X_Level),
 		shared.X_Action, c.GetString(shared.X_Action),
 		shared.X_UserName, c.GetString(shared.X_UserName),
 		shared.X_UserEmail, c.GetString(shared.X_UserEmail),
