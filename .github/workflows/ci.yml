@@ -48,6 +48,7 @@ jobs:
       - name: Test
         env:
           REDIS_HOST: localhost:6379
+          REDIS_TLS: "false"
         run: go test ./...
 
       - name: Build
