@@ -371,7 +371,8 @@ select
     is_nullable = 'NO' as not_null,
     column_default is not null as has_default,
     is_generated = 'ALWAYS' as is_generated,
-    coalesce(generation_expression, '') as generation_expression
+    coalesce(generation_expression, '') as generation_expression,
+    is_identity = 'YES' as is_identity
 from information_schema.columns
 where table_schema = $1 and table_name = $2
 order by ordinal_position;
@@ -393,8 +394,9 @@ order by ordinal_position;
 			hasDefault           bool
 			isGenerated          bool
 			generationExpression string
+			isIdentity           bool
 		)
-		if err = rows.Scan(&colName, &dataType, &udtName, &notNull, &hasDefault, &isGenerated, &generationExpression); err != nil {
+		if err = rows.Scan(&colName, &dataType, &udtName, &notNull, &hasDefault, &isGenerated, &generationExpression, &isIdentity); err != nil {
 			return nil, errors.Errorf("scan columns for %s.%s: %v", schema, name, err)
 		}
 		rawType := rawTypeFromColumn(dataType, udtName)
@@ -404,6 +406,7 @@ order by ordinal_position;
 			NotNull:              notNull,
 			HasDefault:           hasDefault,
 			IsGenerated:          isGenerated,
+			IsIdentity:           isIdentity,
 			GenerationExpression: strings.TrimSpace(generationExpression),
 		}
 		if _, ok := pkColumns[strings.ToLower(colName)]; ok {

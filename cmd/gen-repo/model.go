@@ -13,5 +13,6 @@ type Column struct {
 	IsPrimary            bool
 	HasDefault           bool
 	IsGenerated          bool
+	IsIdentity           bool
 	GenerationExpression string
 }

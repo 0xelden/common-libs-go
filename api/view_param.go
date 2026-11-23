@@ -19,7 +19,7 @@ type ViewParam struct {
 	// ?filters=... straight into the WHERE clause. Worse than adding a
 	// predicate: gin's form mapping assigns the field whenever the key is
 	// present, so a client-supplied ?filters= REPLACED the scoping fragments a
-	// caller passed to NewViewParam — turning "fetch row X within this tenant"
+	// caller passed to NewViewParam: turning "fetch row X within this tenant"
 	// into "fetch any row matching whatever the client asked for".
 	//
 	// Build entries with AddFilter, not fmt.Sprintf.
@@ -33,7 +33,7 @@ type ViewParam struct {
 //
 // The template is trusted, every arg is escaped by helper.FormatSQL, and the
 // result is rejected if it would break out of the clause. Prefer this over
-// appending to Filters directly — that field is raw SQL, so a value pasted in
+// appending to Filters directly, that field is raw SQL, so a value pasted in
 // with fmt.Sprintf is an injection point.
 func (v *ViewParam) AddFilter(stmt string, args ...any) error {
 	fragment, err := buildFilterFragment(stmt, args...)

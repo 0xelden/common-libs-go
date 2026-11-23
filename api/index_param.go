@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	maxPageSize       = 5_000
-	maxPageSizeExport = 100_000
+	maxPageSize        = 5_000
+	maxPageSizeExport  = 100_000
+	maxRequestPageSize = 100
 )
 
 //goland:noinspection GoVetStructTag
@@ -39,6 +40,9 @@ type IndexParam struct {
 	ColumnLabel []string `query:"-" form:"-" json:"-"`
 
 	FilterMap map[string]string `query:"-" form:"-" json:"-"`
+
+	filterColumns []string
+	sortColumns   []string
 }
 
 func NewIndexParam(ctx *gin.Context, binding binding.Binding) (*IndexParam, error) {
@@ -63,6 +67,10 @@ func NewIndexParam(ctx *gin.Context, binding binding.Binding) (*IndexParam, erro
 	// set default size
 	if param.Size < 1 {
 		param.Size = 10
+	}
+	param.Size = min(param.Size, helper.If(omitTotal, maxPageSize, maxRequestPageSize))
+	if param.Page < 1 {
+		param.Page = 1
 	}
 	if err := shared.Validate.Struct(param); err != nil {
 		return nil, err
@@ -151,12 +159,13 @@ func (i *IndexParam) generateSortStmt() (string, error) {
 		if len(col) == 0 {
 			return "", errors.New("invalid sort column name")
 		}
+		i.sortColumns = append(i.sortColumns, identColumn(col, 1))
 		order := "ASC"
 		if strings.ToLower(strings.TrimSpace(split[1])) == "desc" {
 			order = "DESC"
 		}
 		// jsonb path support: sort runs on the outer rows CTE (no table
-		// aliases there), so a dotted name means column.key[...] — e.g.
+		// aliases there), so a dotted name means column.key[...], e.g.
 		// "content.name:desc" -> content->>'name' DESC. Segments are
 		// whitelisted by jsonbSegRe, so nothing unescaped reaches the SQL.
 		jsonbCol, isJsonb, err := buildJsonbPath(col, 1, false)
@@ -266,9 +275,11 @@ func (i *IndexParam) parseFilterAst(exp any) (res []string, err error) {
 		}
 
 	case fexpr.Expr:
+		i.trackFilterColumn(exp.Left)
+		i.trackFilterColumn(exp.Right)
 		left := helper.If(exp.Left.Type == fexpr.TokenText, helper.EscapeSQL(exp.Left.Literal), exp.Left.Literal)
 		if exp.Left.Type == fexpr.TokenIdentifier {
-			// jsonb path support: alias.column.key[...] — cast to numeric only
+			// jsonb path support: alias.column.key[...]: cast to numeric only
 			// when compared against a number literal (null stays text/IS NULL)
 			castNumeric := exp.Right.Type == fexpr.TokenNumber
 			jsonbLeft, isJsonb, err := buildJsonbPath(left, 2, castNumeric)
@@ -308,6 +319,54 @@ func (i *IndexParam) parseFilterAst(exp any) (res []string, err error) {
 	return res, nil
 }
 
+func (i *IndexParam) trackFilterColumn(token fexpr.Token) {
+	if token.Type != fexpr.TokenIdentifier {
+		return
+	}
+	switch strings.ToLower(token.Literal) {
+	case "null", "true", "false":
+		return
+	}
+	i.filterColumns = append(i.filterColumns, identColumn(token.Literal, 2))
+}
+
+func identColumn(ident string, rootSegs int) string {
+	ident, _, _ = strings.Cut(ident, "::")
+	parts := strings.Split(ident, ".")
+	if len(parts) >= rootSegs {
+		return strings.ToLower(parts[rootSegs-1])
+	}
+	return strings.ToLower(parts[len(parts)-1])
+}
+
+// ValidateColumns rejects filters or sorts on columns outside the allow-lists.
+// A nil list allows nothing for that kind.
+func (i *IndexParam) ValidateColumns(filterable, sortable []string) error {
+	if col, ok := firstNotAllowed(i.filterColumns, filterable); !ok {
+		return fmt.Errorf("filter on column %q is not allowed", col)
+	}
+	if col, ok := firstNotAllowed(i.sortColumns, sortable); !ok {
+		return fmt.Errorf("sort on column %q is not allowed", col)
+	}
+	return nil
+}
+
+func firstNotAllowed(used, allowed []string) (string, bool) {
+	for _, col := range used {
+		found := false
+		for _, a := range allowed {
+			if strings.EqualFold(col, a) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return col, false
+		}
+	}
+	return "", true
+}
+
 func (i *IndexParam) parseFilter(str string) (res string, err error) {
 	exp, err := fexpr.Parse(str)
 	if err != nil {
@@ -341,7 +400,7 @@ func buildFilterFragment(stmt string, args ...any) (string, error) {
 //
 // The template is trusted, every arg is escaped by helper.FormatSQL, and the
 // result is rejected if it would break out of the clause. Prefer this over
-// appending to Filters directly — that field is raw SQL, so a value pasted in
+// appending to Filters directly, that field is raw SQL, so a value pasted in
 // with fmt.Sprintf is an injection point.
 func (i *IndexParam) AddFilter(stmt string, args ...any) error {
 	fragment, err := buildFilterFragment(stmt, args...)

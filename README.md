@@ -4,18 +4,18 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/0xelden/common-libs-go.svg)](https://pkg.go.dev/github.com/0xelden/common-libs-go)
 ![Go Version](https://img.shields.io/badge/go-1.25-00ADD8?logo=go)
 
-A batteries-included Go foundation library for building microservices. It provides the framework layer a service is built on — structured errors, HTTP/gRPC plumbing, a generic repository layer, service discovery, object storage — plus code generators that scaffold repositories straight from SQL DDL.
+A batteries-included Go foundation library for building microservices. It provides the framework layer a service is built on (structured errors, HTTP/gRPC plumbing, a generic repository layer, service discovery, object storage) plus code generators that scaffold repositories straight from SQL DDL.
 
 ## Features
 
-- **Structured errors** (`serror`) — errors that carry stack traces, keys/codes, and comment stacks; every layer of the stack returns `serror.SError` instead of a bare `error`
-- **HTTP layer** (`api`, `middleware`) — [gin](https://github.com/gin-gonic/gin)-based response envelope, list/detail query-param parsing (`IndexParam`, `ViewParam`, `SortParam`), JWT auth middleware, and OpenTelemetry tracing built in
-- **Repository pattern** (`service`, `db`) — generic `Repository[dto, model]` contracts on top of [squirrel](https://github.com/Masterminds/squirrel) query building, with single- and multi-database transaction drivers; request-scoped transactions are auto-committed/rolled back by the response helpers
-- **Service gateway** (`gateway`) — a Redis-backed service registry with HTTP→gRPC proxying and route/ACL handshakes between the gateway and its services
-- **Object storage** (`objstorage`) — one interface, two backends: MinIO (default) or Azure Blob Storage, switched by env var
-- **Connections** (`connection`) — env-driven constructors for PostgreSQL, MySQL, ClickHouse, and Redis
-- **Code generation** (`cmd/gen-repo`) — generate repositories, controller scaffolds, and Postman collections from a SQL DDL file, non-destructively
-- **Utilities** (`helper`, `types`) — generics helpers, datetime/SQL/string utilities, and JSON/SQL-serializable custom types (`JSONArray`, `NativeDate`, `RupiahCent`, …)
+- **Structured errors** (`serror`): errors that carry stack traces, keys/codes, and comment stacks; every layer of the stack returns `serror.SError` instead of a bare `error`
+- **HTTP layer** (`api`, `middleware`): [gin](https://github.com/gin-gonic/gin)-based response envelope, list/detail query-param parsing (`IndexParam`, `ViewParam`, `SortParam`), JWT auth middleware, and OpenTelemetry tracing built in
+- **Repository pattern** (`service`, `db`): generic `Repository[dto, model]` contracts on top of [squirrel](https://github.com/Masterminds/squirrel) query building, with single- and multi-database transaction drivers; request-scoped transactions are auto-committed/rolled back by the response helpers
+- **Service gateway** (`gateway`): a Redis-backed service registry with HTTP→gRPC proxying and route/ACL handshakes between the gateway and its services
+- **Object storage** (`objstorage`): one interface, two backends: MinIO (default) or Azure Blob Storage, switched by env var
+- **Connections** (`connection`): env-driven constructors for PostgreSQL, MySQL, ClickHouse, and Redis
+- **Code generation** (`cmd/gen-repo`): generate repositories, controller scaffolds, and Postman collections from a SQL DDL file, non-destructively
+- **Utilities** (`helper`, `types`): generics helpers, datetime/SQL/string utilities, and JSON/SQL-serializable custom types (`JSONArray`, `NativeDate`, `RupiahCent`, …)
 
 ## Installation
 

@@ -35,7 +35,10 @@ func generateFiles(table *Table, modulePath string, dtoTags map[string]map[strin
 			Targets: []DeclTarget{
 				{Kind: token.TYPE, Name: structName + "Dto"},
 				{Kind: token.TYPE, Name: structName},
-				{Kind: token.FUNC, Name: "ConfigValidation"},
+				{Kind: token.TYPE, Name: structName + "CreateForm"},
+				{Kind: token.FUNC, Name: "CreateDto"},
+				{Kind: token.TYPE, Name: structName + "EditForm"},
+				{Kind: token.FUNC, Name: "EditDto"},
 			},
 		},
 		{
@@ -44,6 +47,8 @@ func generateFiles(table *Table, modulePath string, dtoTags map[string]map[strin
 			Targets: []DeclTarget{
 				{Kind: token.CONST, Name: "Count" + structName + "Query"},
 				{Kind: token.CONST, Name: "Index" + structName + "Query"},
+				{Kind: token.VAR, Name: "Filterable" + structName + "Columns"},
+				{Kind: token.VAR, Name: "Sortable" + structName + "Columns"},
 			},
 		},
 		{
@@ -98,17 +103,13 @@ func buildModelFile(table *Table, existingTags map[string]map[string]string) str
 		}
 
 		fieldName := pascalCase(col.Name)
-		tag := mergeDTOStructTags(col.Name, existingTags[fieldName])
+		tag := mergeDTOStructTags(col, existingTags[fieldName])
 		if col.IsGenerated {
 			readFields = append(readFields, fmt.Sprintf("\t%s %s %s", fieldName, fieldType, tag))
 			continue
 		}
 		dtoFields = append(dtoFields, fmt.Sprintf("\t%s %s %s", fieldName, fieldType, tag))
 	}
-	imports["github.com/gookit/validate/v2"] = struct{}{}
-	imports["github.com/0xelden/common-libs-go/shared"] = struct{}{}
-	createValidationFields := buildCreateValidationFields(table)
-
 	var builder strings.Builder
 	builder.WriteString("package model\n\n")
 	writeImportBlock(&builder, imports)
@@ -127,15 +128,90 @@ func buildModelFile(table *Table, existingTags map[string]map[string]string) str
 	}
 	builder.WriteString(fmt.Sprintf("\t%sDto\n", structName))
 	builder.WriteString("}\n")
-	builder.WriteString("\n")
-	builder.WriteString(fmt.Sprintf("func (%s) ConfigValidation(v *validate.Validation) {\n", structName))
-	builder.WriteString("\tv.WithScenes(validate.SValues{\n")
-	builder.WriteString(fmt.Sprintf("\t\tshared.SceneCreate: []string{%s},\n", createValidationFields))
-	builder.WriteString("\t\tshared.SceneEdit:   []string{\"Id\"},\n")
-	builder.WriteString("\t})\n")
-	builder.WriteString("}\n")
+
+	createCols := writableColumns(table, false)
+	editCols := writableColumns(table, true)
+	writeFormStruct(&builder, structName+"CreateForm", createCols, existingTags, true)
+	writeFormToDto(&builder, structName, structName+"CreateForm", "CreateDto", createCols)
+	writeFormStruct(&builder, structName+"EditForm", editCols, existingTags, false)
+	writeFormToDto(&builder, structName, structName+"EditForm", "EditDto", editCols)
 
 	return builder.String()
+}
+
+func writableColumns(table *Table, withId bool) []Column {
+	cols := make([]Column, 0, len(table.Columns))
+	if withId {
+		for _, col := range table.Columns {
+			if isIDColumn(col) && !col.IsGenerated {
+				cols = append(cols, col)
+				break
+			}
+		}
+	}
+	for _, col := range table.Columns {
+		if col.IsGenerated || col.IsIdentity || isIDColumn(col) || isAuditColumn(col.Name) || strings.EqualFold(col.Name, "status") {
+			continue
+		}
+		cols = append(cols, col)
+	}
+	return cols
+}
+
+func writeFormStruct(builder *strings.Builder, name string, cols []Column, existingTags map[string]map[string]string, keepValidate bool) {
+	fmt.Fprintf(builder, "\ntype %s struct {\n", name)
+	for _, col := range cols {
+		fieldName := pascalCase(col.Name)
+		fieldType := buildGoType(col).TypeName
+		if shouldUsePointer(col) {
+			fieldType = "*" + fieldType
+		}
+		fmt.Fprintf(builder, "\t%s %s %s\n", fieldName, fieldType, formStructTag(col, existingTags[fieldName], keepValidate))
+	}
+	builder.WriteString("}\n")
+}
+
+func writeFormToDto(builder *strings.Builder, structName, formName, method string, cols []Column) {
+	fmt.Fprintf(builder, "\nfunc (f %s) %s() %sDto {\n", formName, method, structName)
+	fmt.Fprintf(builder, "\treturn %sDto{\n", structName)
+	for _, col := range cols {
+		fieldName := pascalCase(col.Name)
+		fmt.Fprintf(builder, "\t\t%s: f.%s,\n", fieldName, fieldName)
+	}
+	builder.WriteString("\t}\n")
+	builder.WriteString("}\n")
+}
+
+func formStructTag(col Column, existing map[string]string, keepValidate bool) string {
+	parts := make([]string, 0, 3)
+	for _, key := range []string{"form", "json"} {
+		value := existing[key]
+		if value == "" {
+			value = col.Name
+		}
+		parts = append(parts, fmt.Sprintf("%s:%s", key, strconv.Quote(value)))
+	}
+	rule := existing["validate"]
+	if isIDColumn(col) {
+		rule = idValidateRule(col)
+	} else if !keepValidate {
+		rule = withoutRequiredRule(rule)
+	}
+	if rule != "" {
+		parts = append(parts, fmt.Sprintf("validate:%s", strconv.Quote(rule)))
+	}
+	return "`" + strings.Join(parts, " ") + "`"
+}
+
+func withoutRequiredRule(rule string) string {
+	kept := make([]string, 0)
+	for _, part := range strings.Split(rule, "|") {
+		if part == "" || strings.EqualFold(part, "required") {
+			continue
+		}
+		kept = append(kept, part)
+	}
+	return strings.Join(kept, "|")
 }
 
 func buildQueryFile(table *Table) string {
@@ -166,9 +242,23 @@ func buildQueryFile(table *Table) string {
 	builder.WriteString("\t\t---%s -- sorter handle\n")
 	builder.WriteString("\t\tLIMIT $1 OFFSET $2\n")
 	builder.WriteString("\t;`\n")
+	builder.WriteString(")\n\n")
+
+	columns := quotedColumnNames(table)
+	builder.WriteString("var (\n")
+	fmt.Fprintf(&builder, "\tFilterable%sColumns = []string{%s}\n", structName, columns)
+	fmt.Fprintf(&builder, "\tSortable%sColumns   = []string{%s}\n", structName, columns)
 	builder.WriteString(")\n")
 
 	return builder.String()
+}
+
+func quotedColumnNames(table *Table) string {
+	names := make([]string, 0, len(table.Columns))
+	for _, col := range table.Columns {
+		names = append(names, strconv.Quote(strings.ToLower(col.Name)))
+	}
+	return strings.Join(names, ", ")
 }
 
 func buildRepositoryFile(table *Table, modulePath string) string {
@@ -209,6 +299,7 @@ func New%[3]sRepo(driver db.Driver) (result *%[3]sRepo) {
 	repo := general.
 		NewRepositoryBuilder[model.%[3]sDto, model.%[3]s](driver, table).
 		WithIndexQuery(Count%[3]sQuery, Index%[3]sQuery).
+		WithColumnAllowList(Filterable%[3]sColumns, Sortable%[3]sColumns).
 		WithOverride(result).
 		WithDtoInterface(result.dto).
 		WithGeneralRepoInterface(gen).
@@ -229,7 +320,6 @@ func buildControllerFile(table *Table, modulePath string) string {
 	moduleName := moduleNameForTable(table.Name)
 	structName := structNameForTable(table.Name)
 	repoField := lowerCamelCase(structName)
-	editableFields := buildEditableDTOFields(table)
 
 	template := `package %[1]s
 
@@ -264,7 +354,7 @@ func (c *%[3]sCtrl) Create%[3]s(ctx context.Context, form model.%[3]sDto) (id st
 		return id, serr
 	}
 
-	return res.Id, nil
+	return %[5]s, nil
 }
 
 func (c *%[3]sCtrl) View%[3]s(ctx context.Context, param api.ViewParam) (result model.%[3]s, serr serror.SError) {
@@ -272,10 +362,7 @@ func (c *%[3]sCtrl) View%[3]s(ctx context.Context, param api.ViewParam) (result 
 }
 
 func (c *%[3]sCtrl) Edit%[3]s(ctx context.Context, form model.%[3]sDto) (affected int64, serr serror.SError) {
-	editable := model.%[3]sDto{
-%[5]s
-	}
-	_, serr = c.%[4]s.Repository().DTO().PatchRow(ctx, editable, nil)
+	_, serr = c.%[4]s.Repository().DTO().PatchRow(ctx, form, nil)
 	if serr != nil {
 		return affected, serr
 	}
@@ -290,41 +377,20 @@ func (c *%[3]sCtrl) Delete%[3]s(ctx context.Context, id string) (affected int64,
 }
 `
 
-	return fmt.Sprintf(template, moduleName, modulePath, structName, repoField, editableFields)
+	return fmt.Sprintf(template, moduleName, modulePath, structName, repoField, createdIdExpr(table))
 }
 
-func buildEditableDTOFields(table *Table) string {
-	fields := make([]string, 0, len(table.Columns))
-
+func createdIdExpr(table *Table) string {
 	for _, col := range table.Columns {
-		if !isIDColumn(col) || col.IsGenerated {
+		if !isIDColumn(col) {
 			continue
 		}
-		fieldName := pascalCase(col.Name)
-		fields = append(fields, fmt.Sprintf("\t\t%s: form.%s,", fieldName, fieldName))
+		if buildGoType(col).TypeName != "string" {
+			return "helper.ToString(res.Id)"
+		}
 		break
 	}
-
-	for _, col := range table.Columns {
-		if col.IsGenerated || isIDColumn(col) || isAuditColumn(col.Name) || strings.EqualFold(col.Name, "status") {
-			continue
-		}
-		fieldName := pascalCase(col.Name)
-		fields = append(fields, fmt.Sprintf("\t\t%s: form.%s,", fieldName, fieldName))
-	}
-
-	return strings.Join(fields, "\n")
-}
-
-func buildCreateValidationFields(table *Table) string {
-	fields := make([]string, 0, len(table.Columns))
-	for _, col := range table.Columns {
-		if col.IsGenerated || isIDColumn(col) || isAuditColumn(col.Name) || strings.EqualFold(col.Name, "status") {
-			continue
-		}
-		fields = append(fields, strconv.Quote(pascalCase(col.Name)))
-	}
-	return strings.Join(fields, ", ")
+	return "res.Id"
 }
 
 func buildHTTPFile(table *Table, modulePath string) string {
@@ -363,13 +429,13 @@ func Index%[3]s(ctrl *%[3]sCtrl) gin.HandlerFunc {
 
 func Save%[3]s(txb db.TrxBuilder) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		form := model.%[3]s{}
-		if err := api.BindValidate(c, &form, shared.SceneCreate); err != nil {
+		form := model.%[3]sCreateForm{}
+		if err := api.BindValidate(c, &form); err != nil {
 			api.Error(c, err)
 			return
 		}
 		ctx, trx := api.SetCtxAndTrx(c, txb)
-		result, serr := New%[3]sUsecase(trx).Create%[3]s(ctx, form.%[3]sDto)
+		result, serr := New%[3]sUsecase(trx).Create%[3]s(ctx, form.CreateDto())
 		if serr != nil {
 			api.Error(c, serr)
 			return
@@ -402,13 +468,13 @@ func View%[3]s(ctrl *%[3]sCtrl) gin.HandlerFunc {
 
 func Edit%[3]s(txb db.TrxBuilder) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		form := model.%[3]s{}
-		if err := api.BindValidate(c, &form, shared.SceneEdit); err != nil {
+		form := model.%[3]sEditForm{}
+		if err := api.BindValidate(c, &form); err != nil {
 			api.Error(c, err)
 			return
 		}
 		ctx, trx := api.SetCtxAndTrx(c, txb)
-		result, serr := New%[3]sUsecase(trx).Edit%[3]s(ctx, form.%[3]sDto)
+		result, serr := New%[3]sUsecase(trx).Edit%[3]s(ctx, form.EditDto())
 		if serr != nil {
 			api.Error(c, serr)
 			return

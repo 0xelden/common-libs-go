@@ -194,13 +194,16 @@ func parseColumnDefinition(definition string) (Column, error) {
 	}
 
 	column := Column{
-		Name:                 name,
-		RawType:              normalizeWhitespace(typeExpr),
-		NotNull:              containsNotNull(attrs),
-		IsPrimary:            containsPrimary(attrs),
-		HasDefault:           containsKeyword(attrs, "DEFAULT"),
-		IsGenerated:          containsGenerated(attrs),
-		GenerationExpression: extractGeneratedExpression(definition),
+		Name:        name,
+		RawType:     normalizeWhitespace(typeExpr),
+		NotNull:     containsNotNull(attrs),
+		IsPrimary:   containsPrimary(attrs),
+		HasDefault:  containsKeyword(attrs, "DEFAULT"),
+		IsGenerated: containsGenerated(attrs),
+		IsIdentity:  containsIdentity(attrs),
+	}
+	if column.IsGenerated {
+		column.GenerationExpression = extractGeneratedExpression(definition)
 	}
 	if column.IsPrimary {
 		column.NotNull = true
@@ -343,7 +346,37 @@ func containsKeyword(tokens []string, keyword string) bool {
 }
 
 func containsGenerated(tokens []string) bool {
-	return containsKeyword(tokens, "GENERATED") && containsKeyword(tokens, "AS")
+	return generatedAsTarget(tokens) == "("
+}
+
+func containsIdentity(tokens []string) bool {
+	return generatedAsTarget(tokens) == "IDENTITY"
+}
+
+func generatedAsTarget(tokens []string) string {
+	for i, token := range tokens {
+		if !strings.EqualFold(token, "GENERATED") {
+			continue
+		}
+		for j := i + 1; j < len(tokens); j++ {
+			upper := strings.ToUpper(tokens[j])
+			if strings.HasPrefix(upper, "AS(") {
+				return "("
+			}
+			if upper != "AS" || j+1 >= len(tokens) {
+				continue
+			}
+			next := strings.ToUpper(tokens[j+1])
+			switch {
+			case strings.HasPrefix(next, "("):
+				return "("
+			case strings.HasPrefix(next, "IDENTITY"):
+				return "IDENTITY"
+			}
+			return ""
+		}
+	}
+	return ""
 }
 
 func extractGeneratedExpression(definition string) string {

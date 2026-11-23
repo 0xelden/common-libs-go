@@ -56,6 +56,6 @@ type Client interface {
 	// credentials, without creating or mutating anything.
 	Ping(ctx context.Context) serror.SError
 	// Driver reports which backend this client talks to (DriverMinio /
-	// DriverAzure) — for health/status endpoints, never for branching logic.
+	// DriverAzure): for health/status endpoints, never for branching logic.
 	Driver() string
 }

@@ -25,6 +25,10 @@ type RepositoryConfig[dto, model any] struct {
 	DtoIdField        string
 	IndexFilterUseAnd bool
 	Overrider         any
+
+	RestrictColumns   bool
+	FilterableColumns []string
+	SortableColumns   []string
 }
 
 type Repository[dto, model any] struct {
@@ -219,7 +223,7 @@ func (r *Repository[dto, model]) Get(ctx context.Context, param api.ViewParam) (
 	// {Id: x, Filters: ["result.company_id = 'y'"]} matches row x only when it
 	// also passes the filters. Previously a non-empty Filters silently
 	// REPLACED the id predicate, making Get return the first row matching the
-	// filters regardless of Id — which broke every "fetch by id within tenant
+	// filters regardless of Id, which broke every "fetch by id within tenant
 	// scope" caller (and the ownership checks built on them).
 	if param.Id == "" && len(param.Filters) == 0 {
 		// an unconstrained Get would silently return an arbitrary row
@@ -246,12 +250,17 @@ func (r *Repository[dto, model]) Get(ctx context.Context, param api.ViewParam) (
 	return res.Rows[0], nil
 }
 
-// VerifyIdsExist delegates to the underlying GeneralRepo — see its doc comment.
+// VerifyIdsExist delegates to the underlying GeneralRepo, see its doc comment.
 func (r *Repository[dto, model]) VerifyIdsExist(ctx context.Context, ids []string, where ...sq.Sqlizer) serror.SError {
 	return r.config.Repo.VerifyIdsExist(ctx, ids, where...)
 }
 
 func (r *Repository[dto, model]) List(ctx context.Context, param api.IndexParam) (result api.RowIndex[model], serr serror.SError) {
+	if r.config.RestrictColumns {
+		if err := param.ValidateColumns(r.config.FilterableColumns, r.config.SortableColumns); err != nil {
+			return result, serror.NewFromError(err)
+		}
+	}
 	if iface, ok := r.config.Overrider.(service.Lister[model]); ok {
 		return iface.List(ctx, param)
 	}
@@ -273,6 +282,13 @@ func (b *RepositoryBuilder[dto, model]) WithIndexQuery(countQuery, indexQuery st
 	if len(indexFilterUseAnd) > 0 {
 		b.config.IndexFilterUseAnd = indexFilterUseAnd[0]
 	}
+	return b
+}
+
+func (b *RepositoryBuilder[dto, model]) WithColumnAllowList(filterable, sortable []string) *RepositoryBuilder[dto, model] {
+	b.config.RestrictColumns = true
+	b.config.FilterableColumns = filterable
+	b.config.SortableColumns = sortable
 	return b
 }
 

@@ -79,8 +79,7 @@ func (r *DTO[T]) PrepStructInsert(ctx context.Context, Struct any) (maps map[str
 		by  = helper.ContextGetAny(ctx, shared.X_UserId, nil)
 	)
 	maps = helper.StructToMapDB(Struct)
-	id := helper.ToString(maps["id"])
-	maps["id"] = helper.If(helper.IsValidUUID(id), id, uuid.NewString())
+	fillInsertId(maps)
 	maps["status"] = helper.If(!helper.IsNil(maps["status"]), maps["status"], 1)
 	maps["created_by"] = by
 	maps["created_at"] = now
@@ -166,13 +165,7 @@ func (r *DTO[T]) insertRows(ctx context.Context, form []T, itemCallback func(ind
 
 	for i, item := range form {
 		row := helper.StructToMapDB(item)
-
-		id := helper.ToString(row["id"])
-		if !helper.IsValidUUID(id) {
-			row["id"] = uuid.NewString()
-		} else {
-			row["id"] = id
-		}
+		fillInsertId(row)
 
 		if helper.IsNil(row["status"]) {
 			row["status"] = 1
@@ -192,10 +185,15 @@ func (r *DTO[T]) insertRows(ctx context.Context, form []T, itemCallback func(ind
 
 	helper.TraceUnique(ctx, "*DTO["+r.tstr+"].InsertRows", rows)
 
-	// ambil kolom dari row pertama, lalu sort supaya urutannya stabil
+	seen := make(map[string]struct{}, len(rows[0]))
 	cols := make([]string, 0, len(rows[0]))
-	for k := range rows[0] {
-		cols = append(cols, k)
+	for _, row := range rows {
+		for k := range row {
+			if _, ok := seen[k]; !ok {
+				seen[k] = struct{}{}
+				cols = append(cols, k)
+			}
+		}
 	}
 	sort.Strings(cols)
 
@@ -204,7 +202,12 @@ func (r *DTO[T]) insertRows(ctx context.Context, form []T, itemCallback func(ind
 	for _, row := range rows {
 		val := make([]any, 0, len(cols))
 		for _, col := range cols {
-			val = append(val, row[col])
+			v, ok := row[col]
+			if !ok {
+				val = append(val, sq.Expr("DEFAULT"))
+				continue
+			}
+			val = append(val, v)
 		}
 		stmt = stmt.Values(val...)
 	}
@@ -219,6 +222,42 @@ func (r *DTO[T]) insertRows(ctx context.Context, form []T, itemCallback func(ind
 	}
 
 	return form, nil
+}
+
+func fillInsertId(row map[string]any) {
+	numeric, empty := numericId(row["id"])
+	if numeric {
+		if empty {
+			delete(row, "id")
+		}
+		return
+	}
+	id := helper.ToString(row["id"])
+	row["id"] = helper.If(helper.IsValidUUID(id), id, uuid.NewString())
+}
+
+func numericId(v any) (numeric bool, empty bool) {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return false, true
+	}
+	t := rv.Type()
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	default:
+		return false, false
+	}
+	for rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return true, true
+		}
+		rv = rv.Elem()
+	}
+	return true, rv.IsZero()
 }
 
 func (r *DTO[T]) PatchRows(ctx context.Context, form []T, itemCallback func(index int, item map[string]any)) (result []T, serr serror.SError) {

@@ -57,7 +57,7 @@ func Success(c *gin.Context, data any) {
 	}
 	// Has anything (header or body) already been written?
 	if c.Writer.Written() {
-		// yes—don’t try to write again
+		// yes: don’t try to write again
 		return
 	}
 	Response(c, http.StatusOK, nil, data)

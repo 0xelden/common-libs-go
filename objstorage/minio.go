@@ -61,7 +61,7 @@ func (m minioClient) RemoveObject(ctx context.Context, bucket, key string) serro
 
 func (m minioClient) Ping(ctx context.Context) serror.SError {
 	// BucketExists is a cheap HEAD that only errors on connectivity/auth
-	// problems — a missing probe bucket returns (false, nil).
+	// problems: a missing probe bucket returns (false, nil).
 	if _, err := m.client.BucketExists(ctx, "healthz-probe"); err != nil {
 		return serror.NewFromError(err)
 	}

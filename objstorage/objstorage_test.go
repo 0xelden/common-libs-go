@@ -44,7 +44,7 @@ func TestValidAzureContainer(t *testing.T) {
 // TestAzureRoundTrip exercises the Azure adapter against a live Azurite
 // emulator (docker run -p 10000:10000 mcr.microsoft.com/azure-storage/azurite).
 // Like the other connection-dependent tests, it skips itself when the env is
-// not configured — there is no storage service in CI.
+// not configured: there is no storage service in CI.
 func TestAzureRoundTrip(t *testing.T) {
 	connString := helper.Env("STORAGE_AZURE_CONNECTION_STRING", helper.Env("AZURE_STORAGE_CONNECTION_STRING"))
 	if connString == "" {

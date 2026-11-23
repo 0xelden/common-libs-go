@@ -26,9 +26,9 @@ func WithUniqueTTL(ttl time.Duration) CronOption {
 
 // RegisterCron arranges for a task to be enqueued on a recurring schedule
 // (standard 5-field cron expression, e.g. "0 2 * * *", evaluated against
-// APP_TIMEZONE — default Asia/Jakarta). `name` doubles as the task type and
+// APP_TIMEZONE: default Asia/Jakarta). `name` doubles as the task type and
 // its dedicated queue, exactly like RegisterTask: a consumer must still call
-// RegisterTask(name, handler, ...) to actually process the task —
+// RegisterTask(name, handler, ...) to actually process the task:
 // RegisterCron only arranges the enqueue, the same split as a crontab entry
 // (schedule) vs. the script it invokes (handler).
 //

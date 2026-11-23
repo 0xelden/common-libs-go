@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/go-errors/errors"
@@ -36,12 +37,20 @@ func generateFiles(table *Table, modulePath string, dtoTags map[string]map[strin
 		{
 			Path:    filepath.Join("modules", moduleName, "dto", fmt.Sprintf("%s_dto.go", moduleName)),
 			Content: dtoFile,
-			Targets: []DeclTarget{{Kind: token.TYPE, Name: structName + "Dto"}},
+			Targets: []DeclTarget{
+				{Kind: token.TYPE, Name: structName + "Dto"},
+				{Kind: token.TYPE, Name: structName + "CreateForm"},
+				{Kind: token.FUNC, Name: "CreateDto"},
+				{Kind: token.TYPE, Name: structName + "EditForm"},
+				{Kind: token.FUNC, Name: "EditDto"},
+			},
 		},
 		{
 			Path:    filepath.Join("modules", moduleName, "model", fmt.Sprintf("%s_model.go", moduleName)),
 			Content: buildModelFile(table, modulePath),
-			Targets: []DeclTarget{{Kind: token.TYPE, Name: structName}},
+			Targets: []DeclTarget{
+				{Kind: token.TYPE, Name: structName},
+			},
 		},
 		{
 			Path:    filepath.Join("modules", moduleName, fmt.Sprintf("%s.query.pg.go", moduleName)),
@@ -49,6 +58,8 @@ func generateFiles(table *Table, modulePath string, dtoTags map[string]map[strin
 			Targets: []DeclTarget{
 				{Kind: token.CONST, Name: "Count" + structName + "Query"},
 				{Kind: token.CONST, Name: "Index" + structName + "Query"},
+				{Kind: token.VAR, Name: "Filterable" + structName + "Columns"},
+				{Kind: token.VAR, Name: "Sortable" + structName + "Columns"},
 			},
 		},
 		{
@@ -106,7 +117,7 @@ func buildDTOFile(table *Table, existingTags map[string]map[string]string) (stri
 		}
 
 		fieldName := pascalCase(col.Name)
-		tag := mergeDTOStructTags(col.Name, existingTags[fieldName])
+		tag := mergeDTOStructTags(col, existingTags[fieldName])
 		fields = append(fields, fmt.Sprintf("\t%s %s %s", fieldName, fieldType, tag))
 	}
 
@@ -120,7 +131,89 @@ func buildDTOFile(table *Table, existingTags map[string]map[string]string) (stri
 	}
 	builder.WriteString("}\n")
 
+	createCols := writableColumns(table, false)
+	editCols := writableColumns(table, true)
+	writeFormStruct(&builder, structName+"CreateForm", createCols, existingTags, true)
+	writeFormToDto(&builder, structName, structName+"CreateForm", "CreateDto", createCols)
+	writeFormStruct(&builder, structName+"EditForm", editCols, existingTags, false)
+	writeFormToDto(&builder, structName, structName+"EditForm", "EditDto", editCols)
+
 	return builder.String(), nil
+}
+
+func writableColumns(table *Table, withId bool) []Column {
+	cols := make([]Column, 0, len(table.Columns))
+	if withId {
+		for _, col := range table.Columns {
+			if isIDColumn(col) && !col.IsGenerated {
+				cols = append(cols, col)
+				break
+			}
+		}
+	}
+	for _, col := range table.Columns {
+		if col.IsGenerated || col.IsIdentity || isIDColumn(col) || isAuditColumn(col.Name) || strings.EqualFold(col.Name, "status") {
+			continue
+		}
+		cols = append(cols, col)
+	}
+	return cols
+}
+
+func writeFormStruct(builder *strings.Builder, name string, cols []Column, existingTags map[string]map[string]string, keepValidate bool) {
+	fmt.Fprintf(builder, "\ntype %s struct {\n", name)
+	for _, col := range cols {
+		fieldName := pascalCase(col.Name)
+		fieldType := buildGoType(col).TypeName
+		if shouldUsePointer(col) {
+			fieldType = "*" + fieldType
+		}
+		fmt.Fprintf(builder, "\t%s %s %s\n", fieldName, fieldType, formStructTag(col, existingTags[fieldName], keepValidate))
+	}
+	builder.WriteString("}\n")
+}
+
+func writeFormToDto(builder *strings.Builder, structName, formName, method string, cols []Column) {
+	fmt.Fprintf(builder, "\nfunc (f %s) %s() %sDto {\n", formName, method, structName)
+	fmt.Fprintf(builder, "\treturn %sDto{\n", structName)
+	for _, col := range cols {
+		fieldName := pascalCase(col.Name)
+		fmt.Fprintf(builder, "\t\t%s: f.%s,\n", fieldName, fieldName)
+	}
+	builder.WriteString("\t}\n")
+	builder.WriteString("}\n")
+}
+
+func formStructTag(col Column, existing map[string]string, keepValidate bool) string {
+	parts := make([]string, 0, 3)
+	for _, key := range []string{"form", "json"} {
+		value := existing[key]
+		if value == "" {
+			value = col.Name
+		}
+		parts = append(parts, fmt.Sprintf("%s:%s", key, strconv.Quote(value)))
+	}
+	rule := existing["validate"]
+	if isIDColumn(col) {
+		rule = idValidateRule(col)
+	} else if !keepValidate {
+		rule = withoutRequiredRule(rule)
+	}
+	if rule != "" {
+		parts = append(parts, fmt.Sprintf("validate:%s", strconv.Quote(rule)))
+	}
+	return "`" + strings.Join(parts, " ") + "`"
+}
+
+func withoutRequiredRule(rule string) string {
+	kept := make([]string, 0)
+	for _, part := range strings.Split(rule, "|") {
+		if part == "" || strings.EqualFold(part, "required") {
+			continue
+		}
+		kept = append(kept, part)
+	}
+	return strings.Join(kept, "|")
 }
 
 func buildModelFile(table *Table, modulePath string) string {
@@ -146,9 +239,8 @@ func buildModelFile(table *Table, modulePath string) string {
 			fieldType = "*" + fieldType
 		}
 
-		fields = append(fields, fmt.Sprintf("\t%s %s %s", pascalCase(col.Name), fieldType, mergeDTOStructTags(col.Name, nil)))
+		fields = append(fields, fmt.Sprintf("\t%s %s %s", pascalCase(col.Name), fieldType, mergeDTOStructTags(col, nil)))
 	}
-
 	var builder strings.Builder
 	builder.WriteString("package model\n\n")
 	writeImportBlock(&builder, imports)
@@ -193,9 +285,23 @@ func buildQueryFile(table *Table) string {
 	builder.WriteString("\t\t---%s -- sorter handle\n")
 	builder.WriteString("\t\tLIMIT $1 OFFSET $2\n")
 	builder.WriteString("\t;`\n")
+	builder.WriteString(")\n\n")
+
+	columns := quotedColumnNames(table)
+	builder.WriteString("var (\n")
+	fmt.Fprintf(&builder, "\tFilterable%sColumns = []string{%s}\n", structName, columns)
+	fmt.Fprintf(&builder, "\tSortable%sColumns   = []string{%s}\n", structName, columns)
 	builder.WriteString(")\n")
 
 	return builder.String()
+}
+
+func quotedColumnNames(table *Table) string {
+	names := make([]string, 0, len(table.Columns))
+	for _, col := range table.Columns {
+		names = append(names, strconv.Quote(strings.ToLower(col.Name)))
+	}
+	return strings.Join(names, ", ")
 }
 
 func buildRepositoryFile(table *Table, modulePath string) string {
@@ -241,6 +347,7 @@ func New%[4]sRepo(driver db.Driver) (result *%[4]sRepo) {
 	repo := general.
 		NewRepositoryBuilder[dto.%[4]sDto, model.%[4]s](driver, table).
 		WithIndexQuery(Count%[4]sQuery, Index%[4]sQuery).
+		WithColumnAllowList(Filterable%[4]sColumns, Sortable%[4]sColumns).
 		WithOverride(result).
 		WithDtoInterface(result.dto).
 		WithGeneralRepoInterface(gen).
@@ -263,7 +370,6 @@ func buildControllerFile(table *Table, modulePath string) string {
 	repoField := lowerCamelCase(structName)
 	usecaseName := usecaseInterfaceName(table.Name)
 	repoName := repoInterfaceName(table.Name)
-	editableFields := buildEditableDTOFields(table)
 
 	template := `package %[1]s
 
@@ -273,7 +379,6 @@ import (
 	"github.com/0xelden/common-libs-go/api"
 	"github.com/0xelden/common-libs-go/db"
 	"github.com/0xelden/common-libs-go/helper"
-	"github.com/0xelden/common-libs-go/shared"
 	"%[2]s/modules/%[1]s/dto"
 	"%[2]s/modules/%[1]s/model"
 	"%[2]s/service"
@@ -294,44 +399,24 @@ func New%[4]sUsecase(driver db.Driver) *%[4]sCtrl {
 }
 
 func (c *%[4]sCtrl) Index%[4]s(ctx context.Context, param api.IndexParam) (result api.RowIndex[model.%[4]s], serr serror.SError) {
-	err := shared.Validate.Struct(&param)
-	if err != nil {
-		return result, serror.NewFromError(err)
-	}
 	return c.%[5]s.Repository().List(ctx, param)
 }
 
 func (c *%[4]sCtrl) Create%[4]s(ctx context.Context, form dto.%[4]sDto) (id string, serr serror.SError) {
-	err := shared.Validate.Struct(&form)
-	if err != nil {
-		return id, serror.NewFromError(err)
-	}
-
 	res, serr := c.%[5]s.Repository().Insert(ctx, form)
 	if serr != nil {
 		return id, serr
 	}
 
-	return res.Id, nil
+	return %[7]s, nil
 }
 
 func (c *%[4]sCtrl) View%[4]s(ctx context.Context, param api.ViewParam) (result model.%[4]s, serr serror.SError) {
-	err := shared.Validate.Struct(&param)
-	if err != nil {
-		return result, serror.NewFromError(err)
-	}
 	return c.%[5]s.Repository().Get(ctx, param)
 }
 
 func (c *%[4]sCtrl) Edit%[4]s(ctx context.Context, form dto.%[4]sDto) (affected int64, serr serror.SError) {
-	err := shared.Validate.Struct(&form)
-	if err != nil {
-		return affected, serror.NewFromError(err)
-	}
-	editable := dto.%[4]sDto{
-%[7]s
-	}
-	_, serr = c.%[5]s.Repository().DTO().PatchRow(ctx, editable, nil)
+	_, serr = c.%[5]s.Repository().DTO().PatchRow(ctx, form, nil)
 	if serr != nil {
 		return affected, serr
 	}
@@ -346,30 +431,20 @@ func (c *%[4]sCtrl) Delete%[4]s(ctx context.Context, id string) (affected int64,
 }
 `
 
-	return fmt.Sprintf(template, moduleName, modulePath, usecaseName, structName, repoField, repoName, editableFields)
+	return fmt.Sprintf(template, moduleName, modulePath, usecaseName, structName, repoField, repoName, createdIdExpr(table))
 }
 
-func buildEditableDTOFields(table *Table) string {
-	fields := make([]string, 0, len(table.Columns))
-
+func createdIdExpr(table *Table) string {
 	for _, col := range table.Columns {
-		if !isIDColumn(col) || col.IsGenerated {
+		if !isIDColumn(col) {
 			continue
 		}
-		fieldName := pascalCase(col.Name)
-		fields = append(fields, fmt.Sprintf("\t\t%s: form.%s,", fieldName, fieldName))
+		if buildGoType(col).TypeName != "string" {
+			return "helper.ToString(res.Id)"
+		}
 		break
 	}
-
-	for _, col := range table.Columns {
-		if col.IsGenerated || isIDColumn(col) || isAuditColumn(col.Name) || strings.EqualFold(col.Name, "status") {
-			continue
-		}
-		fieldName := pascalCase(col.Name)
-		fields = append(fields, fmt.Sprintf("\t\t%s: form.%s,", fieldName, fieldName))
-	}
-
-	return strings.Join(fields, "\n")
+	return "res.Id"
 }
 
 func buildHTTPFile(table *Table, modulePath string) string {
@@ -408,13 +483,13 @@ func Index%[3]s(ctrl service.%[4]s) gin.HandlerFunc {
 
 func Save%[3]s(txb db.TrxBuilder) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		form := dto.%[3]sDto{}
-		if err := api.FormUnmarshal(c, &form); err != nil {
+		form := dto.%[3]sCreateForm{}
+		if err := api.BindValidate(c, &form); err != nil {
 			api.Error(c, err)
 			return
 		}
 		ctx, trx := api.SetCtxAndTrx(c, txb)
-		result, serr := New%[3]sUsecase(trx).Create%[3]s(ctx, form)
+		result, serr := New%[3]sUsecase(trx).Create%[3]s(ctx, form.CreateDto())
 		if serr != nil {
 			api.Error(c, serr)
 			return
@@ -442,13 +517,13 @@ func View%[3]s(ctrl service.%[4]s) gin.HandlerFunc {
 
 func Edit%[3]s(txb db.TrxBuilder) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		form := dto.%[3]sDto{}
-		if err := api.FormUnmarshal(c, &form); err != nil {
+		form := dto.%[3]sEditForm{}
+		if err := api.BindValidate(c, &form); err != nil {
 			api.Error(c, err)
 			return
 		}
 		ctx, trx := api.SetCtxAndTrx(c, txb)
-		result, serr := New%[3]sUsecase(trx).Edit%[3]s(ctx, form)
+		result, serr := New%[3]sUsecase(trx).Edit%[3]s(ctx, form.EditDto())
 		if serr != nil {
 			api.Error(c, serr)
 			return

@@ -155,7 +155,8 @@ func readQuotedTagValue(input string) (string, string, bool) {
 }
 
 // mergeDTOStructTags keeps existing tags when present and fills in dto defaults.
-func mergeDTOStructTags(column string, existing map[string]string) string {
+func mergeDTOStructTags(col Column, existing map[string]string) string {
+	column := col.Name
 	tags := cloneTagMap(existing)
 	if tags == nil {
 		tags = map[string]string{}
@@ -171,7 +172,7 @@ func mergeDTOStructTags(column string, existing map[string]string) string {
 		}
 	}
 	if strings.EqualFold(column, "id") {
-		tags["validate"] = "required|uuid"
+		tags["validate"] = idValidateRule(col)
 	}
 
 	parts := make([]string, 0, len(tags))
@@ -198,6 +199,17 @@ func mergeDTOStructTags(column string, existing map[string]string) string {
 	}
 
 	return "`" + strings.Join(parts, " ") + "`"
+}
+
+func idValidateRule(col Column) string {
+	if strings.Contains(baseSQLType(col.RawType), "uuid") {
+		return "required|uuid"
+	}
+	switch buildGoType(col).TypeName {
+	case "int", "int64":
+		return "required|int"
+	}
+	return "required"
 }
 
 func cloneTagMap(input map[string]string) map[string]string {

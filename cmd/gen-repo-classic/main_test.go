@@ -93,10 +93,10 @@ func TestLoadTableDefinitionFromDatabase(t *testing.T) {
 			{"id"},
 		},
 		[][]driver.Value{
-			{"id", "uuid", "uuid", true, true, false, ""},
-			{"name", "character varying", "varchar", false, false, false, ""},
-			{"year", "integer", "int4", false, false, true, "(split_part((date)::text, '-'::text, 1))::integer"},
-			{"created_at", "timestamp without time zone", "timestamp", false, false, false, ""},
+			{"id", "uuid", "uuid", true, true, false, "", false},
+			{"name", "character varying", "varchar", false, false, false, "", false},
+			{"year", "integer", "int4", false, false, true, "(split_part((date)::text, '-'::text, 1))::integer", false},
+			{"created_at", "timestamp without time zone", "timestamp", false, false, false, "", false},
 		},
 	)
 	defer func() {
@@ -181,7 +181,7 @@ func (c *stubConn) QueryContext(_ context.Context, query string, _ []driver.Name
 	case strings.Contains(q, "information_schema.table_constraints"):
 		return newStubRows([]string{"column_name"}, c.data.pkRows), nil
 	case strings.Contains(q, "information_schema.columns"):
-		return newStubRows([]string{"column_name", "data_type", "udt_name", "not_null", "has_default", "is_generated", "generation_expression"}, c.data.columnRows), nil
+		return newStubRows([]string{"column_name", "data_type", "udt_name", "not_null", "has_default", "is_generated", "generation_expression", "is_identity"}, c.data.columnRows), nil
 	default:
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
@@ -290,6 +290,29 @@ func TestGenerateFiles(t *testing.T) {
 	if !strings.Contains(modelFile, "read model only") {
 		t.Fatalf("model file should mark generated columns:\n%s", modelFile)
 	}
+	if strings.Contains(modelFile, "ConfigValidation") {
+		t.Fatalf("model file should not use validation scenes:\n%s", modelFile)
+	}
+	createForm := structBody(t, dtoFile, "type DemoTableCreateForm struct")
+	if strings.Contains(createForm, "Id ") || strings.Contains(createForm, "Status ") || strings.Contains(createForm, "Year ") {
+		t.Fatalf("create form should exclude id, status and generated columns:\n%s", dtoFile)
+	}
+	if !strings.Contains(createForm, "Name *string") {
+		t.Fatalf("create form should include writable columns:\n%s", dtoFile)
+	}
+	editForm := structBody(t, dtoFile, "type DemoTableEditForm struct")
+	if !strings.Contains(editForm, `Id string `+"`"+`form:"id" json:"id" validate:"required|uuid"`+"`") {
+		t.Fatalf("edit form should require id:\n%s", dtoFile)
+	}
+	if strings.Contains(editForm, "Status ") || strings.Contains(editForm, "Year ") {
+		t.Fatalf("edit form should exclude status and generated columns:\n%s", dtoFile)
+	}
+	if !strings.Contains(dtoFile, "func (f DemoTableCreateForm) CreateDto() DemoTableDto {") || !strings.Contains(dtoFile, "func (f DemoTableEditForm) EditDto() DemoTableDto {") {
+		t.Fatalf("dto file should convert forms into dto:\n%s", dtoFile)
+	}
+	if !strings.Contains(dtoFile, `validate:"required|uuid"`) {
+		t.Fatalf("dto file should mark Id as required uuid:\n%s", dtoFile)
+	}
 	queryFile := fileMap[expectedQueryPath].Content
 	if !strings.Contains(queryFile, "CountDemoTableQuery") || !strings.Contains(queryFile, "IndexDemoTableQuery") {
 		t.Fatalf("query file missing constants:\n%s", queryFile)
@@ -360,20 +383,11 @@ func TestGenerateFilesWithController(t *testing.T) {
 	if !strings.Contains(ctrlFile.Content, "service.DemoTableUsecase") {
 		t.Fatalf("controller file missing service usecase interface:\n%s", ctrlFile.Content)
 	}
-	if !strings.Contains(ctrlFile.Content, "editable := dto.DemoTableDto{") {
-		t.Fatalf("controller file missing editable dto patch payload:\n%s", ctrlFile.Content)
+	if !strings.Contains(ctrlFile.Content, "Repository().DTO().PatchRow(ctx, form, nil)") {
+		t.Fatalf("controller file should patch the edit dto:\n%s", ctrlFile.Content)
 	}
-	if !strings.Contains(ctrlFile.Content, "Id: form.Id,") {
-		t.Fatalf("controller file should include id in editable payload:\n%s", ctrlFile.Content)
-	}
-	if !strings.Contains(ctrlFile.Content, "Name: form.Name,") {
-		t.Fatalf("controller file should include non-audit fields in editable payload:\n%s", ctrlFile.Content)
-	}
-	if strings.Contains(ctrlFile.Content, "Status: form.Status,") || strings.Contains(ctrlFile.Content, "CreatedAt: form.CreatedAt,") || strings.Contains(ctrlFile.Content, "UpdatedBy: form.UpdatedBy,") {
-		t.Fatalf("controller file should exclude status and audit fields from editable payload:\n%s", ctrlFile.Content)
-	}
-	if !strings.Contains(ctrlFile.Content, "Repository().DTO().PatchRow(ctx, editable, nil)") {
-		t.Fatalf("controller file should patch editable dto:\n%s", ctrlFile.Content)
+	if strings.Contains(ctrlFile.Content, "shared.Validate.Struct") {
+		t.Fatalf("controller file should not perform shared.Validate.Struct validation:\n%s", ctrlFile.Content)
 	}
 
 	httpPath := filepath.Join("modules", "demo_table", "demo_table.http.go")
@@ -385,6 +399,15 @@ func TestGenerateFilesWithController(t *testing.T) {
 			}
 			if !strings.Contains(file.Content, "func SaveDemoTable") {
 				t.Fatalf("http file missing SaveDemoTable:\n%s", file.Content)
+			}
+			if strings.Contains(file.Content, "api.FormUnmarshal") {
+				t.Fatalf("http file should bind with api.BindValidate, not api.FormUnmarshal:\n%s", file.Content)
+			}
+			if !strings.Contains(file.Content, "form := dto.DemoTableCreateForm{}") || !strings.Contains(file.Content, "form := dto.DemoTableEditForm{}") {
+				t.Fatalf("http file should bind into dedicated forms:\n%s", file.Content)
+			}
+			if !strings.Contains(file.Content, "CreateDemoTable(ctx, form.CreateDto())") || !strings.Contains(file.Content, "EditDemoTable(ctx, form.EditDto())") {
+				t.Fatalf("http file should pass dto converted from the form:\n%s", file.Content)
 			}
 			found = true
 			break
@@ -517,7 +540,7 @@ func TestLoadDTOFieldTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildDTOFile returned error: %v", err)
 	}
-	if !strings.Contains(dtoFile, "validate:\"omitempty,uuid\"") {
+	if !strings.Contains(dtoFile, "validate:\"required|uuid\"") {
 		t.Fatalf("dto file missing validate tag:\n%s", dtoFile)
 	}
 	if !strings.Contains(dtoFile, "json:\"name,omitempty\"") {
@@ -1409,4 +1432,14 @@ func postmanFormdataCount(formdata []map[string]any, key string) int {
 		}
 	}
 	return count
+}
+
+func structBody(t *testing.T, content, decl string) string {
+	t.Helper()
+	start := strings.Index(content, decl)
+	if start < 0 {
+		t.Fatalf("missing %s:\n%s", decl, content)
+	}
+	end := strings.Index(content[start:], "\n}")
+	return content[start : start+end]
 }

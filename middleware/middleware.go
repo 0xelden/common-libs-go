@@ -222,7 +222,7 @@ func SetMetadata(basepoint string, noRefURI ...string) gin.HandlerFunc {
 		ctx.Set(shared.X_PortalId, shared.EmptyUuid)
 		ctx.Set(shared.X_UserId, shared.EmptyUuid)
 		// roles are a list, so "none yet" is the empty string rather than a
-		// placeholder uuid — an EmptyUuid default would decode as one role
+		// placeholder uuid: an EmptyUuid default would decode as one role
 		// whose id is all zeroes.
 		ctx.Set(shared.X_RoleIds, "")
 

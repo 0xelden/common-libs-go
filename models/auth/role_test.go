@@ -86,7 +86,7 @@ func TestSessionEnvelopeRoleIdsFromPayloadKeepsOrder(t *testing.T) {
 	}
 }
 
-// A payload with no company must still parse — that field is only kept for
+// A payload with no company must still parse, that field is only kept for
 // older sessions and must not become a requirement.
 func TestSessionEnvelopeCompanyOptionalAlongsideRoles(t *testing.T) {
 	var session SessionEnvelope
@@ -191,7 +191,7 @@ func TestRoleIdsFromContext(t *testing.T) {
 }
 
 // A handler holds a *gin.Context, which resolves string keys against its own
-// Keys map — so the same accessor has to work before api.SetContext has
+// Keys map, so the same accessor has to work before api.SetContext has
 // derived a native context from it.
 func TestRoleIdsFromGinContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)

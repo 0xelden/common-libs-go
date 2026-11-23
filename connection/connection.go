@@ -274,7 +274,7 @@ func ConnectAsynq() (*asynq.RedisClientOpt, serror.SError) {
 
 // ConnectObjectStorage connects to the object-storage backend selected by the
 // STORAGE_DRIVER env var: "minio" (default) or "azure". All connection vars
-// share the STORAGE_ prefix — STORAGE_MINIO_HOST/ID/SECRET/SSL and
+// share the STORAGE_ prefix: STORAGE_MINIO_HOST/ID/SECRET/SSL and
 // STORAGE_AZURE_CONNECTION_STRING (or STORAGE_AZURE_ACCOUNT/KEY/ENDPOINT).
 // The Azurite emulator is supported via
 // STORAGE_AZURE_CONNECTION_STRING=UseDevelopmentStorage=true. Legacy unprefixed
