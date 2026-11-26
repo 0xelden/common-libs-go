@@ -75,7 +75,7 @@ func (t TrxSqlDriverMultiDB) Commit() (err error) {
 }
 
 func (t TrxSqlDriverMultiDB) PingContext(ctx context.Context) error {
-	return t.db[helper.First(t.getOne(ctx))].Ping()
+	return t.db[helper.First(t.getOne(ctx))].PingContext(ctx)
 }
 
 func (t TrxSqlDriverMultiDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {

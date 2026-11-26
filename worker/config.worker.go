@@ -39,7 +39,7 @@ func NewConfig(name string, clientOpt *asynq.RedisClientOpt, client *asynq.Clien
 	return cfg
 }
 
-func (cfg *Config) startWorker(name string, mux *asynq.ServeMux) serror.SError {
+func (cfg *Config) startWorker(ctx context.Context, name string, mux *asynq.ServeMux) serror.SError {
 	wsize := helper.Coalesce(cfg.Parallel[name], 10)
 	queue := map[string]int{name: helper.Coalesce(cfg.Priority[name], 10)}
 	worker := asynq.NewServer(cfg.ClientOpt, asynq.Config{
@@ -56,13 +56,19 @@ func (cfg *Config) startWorker(name string, mux *asynq.ServeMux) serror.SError {
 	// register task middleware
 	// order is ipmortant, this one need to be registered after all handler available on the mux
 	mux.Use(cfg.TracingMiddleware)
-	if err := worker.Run(mux); err != nil {
+	if err := worker.Start(mux); err != nil {
 		return serror.NewFromError(err)
 	}
 
+	<-ctx.Done()
+	worker.Shutdown()
 	return nil
 }
 
+// StartWorker runs every registered queue and the cron scheduler until ctx is
+// cancelled, then shuts them down, letting in-flight tasks finish within
+// asynq's ShutdownTimeout. It returns early if a queue or the scheduler fails
+// to start.
 func (cfg *Config) StartWorker(ctx context.Context) serror.SError {
 	log.Println("Workers version:", cli.Version, "commit id:", cli.Commit, "built:", cli.Build)
 	log.Printf(`Strict mode: %v`, EnvJobStrictPriority)
@@ -71,13 +77,18 @@ func (cfg *Config) StartWorker(ctx context.Context) serror.SError {
 		k := k
 		v := v
 		g.Go(func() error {
-			return cfg.startWorker(k, v)
+			return cfg.startWorker(ctx, k, v)
 		})
 	}
 
 	if cfg.scheduler != nil {
 		g.Go(func() error {
-			return cfg.scheduler.Run()
+			if err := cfg.scheduler.Start(); err != nil {
+				return err
+			}
+			<-ctx.Done()
+			cfg.scheduler.Shutdown()
+			return nil
 		})
 	}
 

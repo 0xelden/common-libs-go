@@ -461,6 +461,8 @@ func buildHTTPFile(table *Table, modulePath string) string {
 	template := `package %[1]s
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/0xelden/common-libs-go/api"
@@ -495,7 +497,11 @@ func Save%[3]s(txb db.TrxBuilder) gin.HandlerFunc {
 			api.Error(c, err)
 			return
 		}
-		ctx, trx := api.SetCtxAndTrx(c, txb)
+		ctx, trx, err := api.BeginTrx(c, txb)
+		if err != nil {
+			api.Error(c, err, http.StatusInternalServerError)
+			return
+		}
 		result, serr := New%[3]sUsecase(trx).Create%[3]s(ctx, form.CreateDto())
 		if serr != nil {
 			api.Error(c, serr)
@@ -534,7 +540,11 @@ func Edit%[3]s(txb db.TrxBuilder) gin.HandlerFunc {
 			api.Error(c, err)
 			return
 		}
-		ctx, trx := api.SetCtxAndTrx(c, txb)
+		ctx, trx, err := api.BeginTrx(c, txb)
+		if err != nil {
+			api.Error(c, err, http.StatusInternalServerError)
+			return
+		}
 		result, serr := New%[3]sUsecase(trx).Edit%[3]s(ctx, form.EditDto())
 		if serr != nil {
 			api.Error(c, serr)
@@ -551,7 +561,11 @@ func Delete%[3]s(txb db.TrxBuilder) gin.HandlerFunc {
 			api.Error(c, serror.New("invalid id, expected to be a uuid"))
 			return
 		}
-		ctx, trx := api.SetCtxAndTrx(c, txb)
+		ctx, trx, err := api.BeginTrx(c, txb)
+		if err != nil {
+			api.Error(c, err, http.StatusInternalServerError)
+			return
+		}
 		result, serr := New%[3]sUsecase(trx).Delete%[3]s(ctx, id)
 		if serr != nil {
 			api.Error(c, serr)

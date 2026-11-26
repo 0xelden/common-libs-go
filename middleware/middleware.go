@@ -10,6 +10,7 @@ import (
 	"github.com/0xelden/common-libs-go/api"
 	"github.com/0xelden/common-libs-go/cli"
 	"github.com/0xelden/common-libs-go/connection"
+	"github.com/0xelden/common-libs-go/db"
 	"github.com/0xelden/common-libs-go/helper"
 	authModels "github.com/0xelden/common-libs-go/models/auth"
 	"github.com/0xelden/common-libs-go/shared"
@@ -53,6 +54,7 @@ func RegisterService(httpBasePoint string, service *gin.Engine, options ...Optio
 	}
 
 	service.Use(HandleNotfound())
+	service.Use(RollbackOnPanic())
 
 	for _, opt := range options {
 		opt(m)
@@ -135,6 +137,24 @@ func WithBuiltinRoute(builtinPath ...string) Option {
 func WithoutTelemetry() Option {
 	return func(m *middleware) {
 		m.disableTelemetry = true
+	}
+}
+
+// RollbackOnPanic rolls back the request's transaction (see api.BeginTrx)
+// when a handler panics, then re-panics so gin's Recovery still answers 500.
+func RollbackOnPanic() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if r := recover(); r != nil {
+				if tx, ok := c.Get(shared.TrxInstance); ok {
+					if rb, ok := tx.(db.Rollbacker); ok && !helper.IsNil(rb) {
+						_ = rb.Rollback()
+					}
+				}
+				panic(r)
+			}
+		}()
+		c.Next()
 	}
 }
 

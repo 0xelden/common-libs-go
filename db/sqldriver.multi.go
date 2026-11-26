@@ -45,7 +45,7 @@ func (t SqlDriverMulti) getOne(ctx context.Context) *sql.DB {
 }
 
 func (t SqlDriverMulti) PingContext(ctx context.Context) error {
-	return t.getOne(ctx).Ping()
+	return t.getOne(ctx).PingContext(ctx)
 }
 
 func (t SqlDriverMulti) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {

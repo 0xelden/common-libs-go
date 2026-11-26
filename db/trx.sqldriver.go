@@ -39,7 +39,7 @@ func (t TrxSqlDriver) Commit() error {
 }
 
 func (t TrxSqlDriver) PingContext(ctx context.Context) error {
-	return t.db.Ping()
+	return t.db.PingContext(ctx)
 }
 
 func (t TrxSqlDriver) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {

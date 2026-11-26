@@ -48,7 +48,22 @@ func SetContext(c *gin.Context, kv ...string) context.Context {
 	return ctx
 }
 
+// BeginTrx sets the native context value and opens a transaction, stored on
+// the gin context so Success commits it and Error (or a panic caught by
+// middleware.RollbackOnPanic) rolls it back.
+func BeginTrx(c *gin.Context, txb db.TrxBuilder, kv ...string) (context.Context, db.TrxDriver, error) {
+	ctx := SetContext(c, kv...)
+	trx, err := txb.NewTransaction(ctx)
+	if err != nil {
+		return ctx, nil, err
+	}
+	c.Set(shared.TrxInstance, trx)
+	return ctx, trx, nil
+}
+
 // SetCtxAndTrx read gin context to set transaction and native context value
+//
+// Deprecated: it hides a failed NewTransaction behind a nil driver; use BeginTrx.
 func SetCtxAndTrx(c *gin.Context, txb db.TrxBuilder, kv ...string) (context.Context, db.TrxDriver) {
 	ctx := SetContext(c, kv...)
 	trx, err := txb.NewTransaction(ctx)

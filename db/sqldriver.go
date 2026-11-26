@@ -18,7 +18,7 @@ func NewSqlDriver(DB *sql.DB) (*SqlDriver, error) {
 }
 
 func (t SqlDriver) PingContext(ctx context.Context) error {
-	return t.db.Ping()
+	return t.db.PingContext(ctx)
 }
 
 func (t SqlDriver) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
