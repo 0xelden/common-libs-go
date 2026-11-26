@@ -108,7 +108,7 @@ Key groups (see [.env.example](.env.example) for the full list):
 | Auth | `JWT_SECRET` (min 32 bytes), `JWT_ISSUER` (default `usm`), `JWT_AUDIENCE` (optional) |
 | Registry / Redis | `APP_REGISTRY_ADDR`, `APP_REGISTRY_TLS` (default `true`), `REDIS_HOST`, `REDIS_PWD`, `REDIS_TLS` (default `true`), `JOB_REDIS_*` |
 | Database | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PWD`, `DB_NAME`, `DB_SSL_MODE` (default `require`) |
-| Object storage | `STORAGE_DRIVER` (`minio`/`azure`), `STORAGE_MINIO_*`, `STORAGE_AZURE_*`, `STORAGE_ALLOWED_TYPES`, `STORAGE_MAX_UPLOAD_SIZE` (default 10 MiB) |
+| Object storage | `STORAGE_DRIVER` (`minio`/`azure`), `STORAGE_MINIO_*`, `STORAGE_AZURE_*` |
 | Tracing | `UPTRACE_DSN` |
 
 ## Development

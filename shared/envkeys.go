@@ -78,9 +78,6 @@ const (
 	JobRedisDB   = "JOB_REDIS_DB"
 	JobRedisTLS  = "JOB_REDIS_TLS"
 
-	StorageAllowedTypes  = "STORAGE_ALLOWED_TYPES"
-	StorageMaxUploadSize = "STORAGE_MAX_UPLOAD_SIZE"
-
 	BrokerAddr = "BROKER_ADDR"
 	BrokerPwd  = "BROKER_PWD"
 

@@ -9,7 +9,6 @@ import (
 
 	"github.com/0xelden/common-libs-go/objstorage"
 	"github.com/0xelden/common-libs-go/serror"
-	"github.com/0xelden/common-libs-go/shared"
 )
 
 type fakeStorage struct {
@@ -76,24 +75,14 @@ func TestUploadFromReadSeekerContentType(t *testing.T) {
 	}
 }
 
-func TestUploadFromReadSeekerLimits(t *testing.T) {
-	t.Setenv(shared.StorageMaxUploadSize, "16")
+func TestUploadFromReadSeekerSizeLimit(t *testing.T) {
 	fake := &fakeStorage{}
-	big := append(append([]byte{}, pngHeader...), bytes.Repeat([]byte{0}, 16)...)
+	big := append(append([]byte{}, pngHeader...), bytes.Repeat([]byte{0}, int(DefaultMaxUploadSize))...)
 	if _, serr := (objStorage{client: fake}).UploadFromReadSeeker(context.Background(), bytes.NewReader(big), 1, "bucket", "file", "image/png"); serr == nil || !strings.Contains(serr.Error(), "limit") {
 		t.Fatalf("oversized upload: err=%v", serr)
 	}
-
-	t.Setenv(shared.StorageMaxUploadSize, "")
-	t.Setenv(shared.StorageAllowedTypes, "text/plain, text/html")
-	if _, serr := (objStorage{client: fake}).UploadFromReadSeeker(context.Background(), strings.NewReader("a,b\n1,2\n"), 1, "bucket", "file.csv", "text/csv"); serr != nil {
-		t.Fatalf("text/plain from STORAGE_ALLOWED_TYPES rejected: %v", serr)
-	}
-	if _, serr := (objStorage{client: fake}).UploadFromReadSeeker(context.Background(), strings.NewReader("<html></html>"), 1, "bucket", "file", "text/html"); serr == nil {
-		t.Fatal("text/html must stay blocked even when listed in STORAGE_ALLOWED_TYPES")
-	}
-	if _, serr := (objStorage{client: fake}).UploadFromReadSeeker(context.Background(), bytes.NewReader(pngHeader), 1, "bucket", "file", "image/png"); serr == nil {
-		t.Fatal("STORAGE_ALLOWED_TYPES must replace the default list")
+	if fake.puts != 0 {
+		t.Fatalf("oversized upload was stored")
 	}
 }
 
@@ -108,7 +97,7 @@ func TestUploadValidated(t *testing.T) {
 	}{
 		{name: "svg checked by the caller", body: svg, contentType: "image/svg+xml"},
 		{name: "type outside the default allow-list", body: []byte{0x1A, 0x45, 0xDF, 0xA3}, contentType: "video/webm"},
-		{name: "larger than STORAGE_MAX_UPLOAD_SIZE", body: big, contentType: "video/mp4"},
+		{name: "larger than DefaultMaxUploadSize", body: big, contentType: "video/mp4"},
 		{name: "params are dropped", body: svg, contentType: "image/svg+xml; charset=utf-8"},
 		{name: "html", body: []byte("<html></html>"), contentType: "text/html", wantErr: true},
 		{name: "javascript", body: []byte("alert(1)"), contentType: "application/javascript", wantErr: true},

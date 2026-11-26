@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/logger"
@@ -115,37 +114,20 @@ const DefaultMaxUploadSize int64 = 10 << 20
 
 var (
 	DefaultAllowedUploadTypes = []string{"image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "video/mp4"}
-	blockedUploadTypes        = []string{"text/html", "text/xml", "application/xml", "image/svg+xml", "text/javascript", "application/javascript"}
 	validatedRefusedTypes     = []string{"text/html", "application/xhtml+xml", "text/javascript", "application/javascript"}
 )
 
-// allowedUploadTypes reads STORAGE_ALLOWED_TYPES (comma-separated MIME types),
-// falling back to DefaultAllowedUploadTypes.
-func allowedUploadTypes() []string {
-	raw := helper.Env(shared.StorageAllowedTypes)
-	if strings.TrimSpace(raw) == "" {
-		return DefaultAllowedUploadTypes
-	}
-	var types []string
-	for _, t := range strings.Split(raw, ",") {
-		if t = strings.ToLower(strings.TrimSpace(t)); t != "" {
-			types = append(types, t)
-		}
-	}
-	return types
-}
-
-// checkUpload enforces STORAGE_MAX_UPLOAD_SIZE (bytes, default
-// DefaultMaxUploadSize) and returns the content type sniffed from the first
-// 512 bytes. HTML, XML, SVG and JavaScript are always rejected; anything else
-// must be in allowedUploadTypes. The reader is rewound before returning.
+// checkUpload enforces DefaultMaxUploadSize and returns the content type
+// sniffed from the first 512 bytes, which must be in DefaultAllowedUploadTypes.
+// Services that need other types or sizes validate the content themselves and
+// call UploadValidated. The reader is rewound before returning.
 func checkUpload(reader io.ReadSeeker) (size int64, contentType string, serr serror.SError) {
 	size, err := reader.Seek(0, io.SeekEnd)
 	if err != nil {
 		return 0, "", serror.NewFromError(err)
 	}
-	if maxSize := helper.StringToInt(helper.Env(shared.StorageMaxUploadSize), DefaultMaxUploadSize); size > maxSize {
-		return 0, "", serror.Newf("file is %d bytes, larger than the %d byte limit", size, maxSize)
+	if size > DefaultMaxUploadSize {
+		return 0, "", serror.Newf("file is %d bytes, larger than the %d byte limit", size, DefaultMaxUploadSize)
 	}
 	if _, err = reader.Seek(0, io.SeekStart); err != nil {
 		return 0, "", serror.NewFromError(err)
@@ -164,12 +146,7 @@ func checkUpload(reader io.ReadSeeker) (size int64, contentType string, serr ser
 	if err != nil {
 		return 0, "", serror.NewFromError(err)
 	}
-	for _, blocked := range blockedUploadTypes {
-		if contentType == blocked {
-			return 0, "", serror.Newf("file type %s is not allowed", contentType)
-		}
-	}
-	for _, allowed := range allowedUploadTypes() {
+	for _, allowed := range DefaultAllowedUploadTypes {
 		if contentType == allowed {
 			return size, contentType, nil
 		}
