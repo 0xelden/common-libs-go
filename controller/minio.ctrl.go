@@ -116,6 +116,7 @@ const DefaultMaxUploadSize int64 = 10 << 20
 var (
 	DefaultAllowedUploadTypes = []string{"image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "video/mp4"}
 	blockedUploadTypes        = []string{"text/html", "text/xml", "application/xml", "image/svg+xml", "text/javascript", "application/javascript"}
+	validatedRefusedTypes     = []string{"text/html", "application/xhtml+xml", "text/javascript", "application/javascript"}
 )
 
 // allowedUploadTypes reads STORAGE_ALLOWED_TYPES (comma-separated MIME types),
@@ -184,7 +185,34 @@ func (o objStorage) UploadFromReadSeeker(ctx context.Context, reader io.ReadSeek
 	if serr != nil {
 		return result, serr
 	}
+	return o.store(ctx, reader, size, bucket, id, contentType)
+}
 
+// UploadValidated stores reader with a contentType the caller has already
+// derived from the content (sniffed, allow-listed and, for SVG, sanitized),
+// skipping checkUpload's allow-list and size limit. Never pass the client's
+// Content-Type header here. HTML and JavaScript are still refused.
+func (o objStorage) UploadValidated(ctx context.Context, reader io.ReadSeeker, bucket, id, contentType string) (result string, serr serror.SError) {
+	contentType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return result, serror.Newf("invalid content type: %v", err)
+	}
+	for _, refused := range validatedRefusedTypes {
+		if contentType == refused {
+			return result, serror.Newf("file type %s is not allowed", contentType)
+		}
+	}
+	size, err := reader.Seek(0, io.SeekEnd)
+	if err != nil {
+		return result, serror.NewFromError(err)
+	}
+	if _, err = reader.Seek(0, io.SeekStart); err != nil {
+		return result, serror.NewFromError(err)
+	}
+	return o.store(ctx, reader, size, bucket, id, contentType)
+}
+
+func (o objStorage) store(ctx context.Context, reader io.ReadSeeker, size int64, bucket, id, contentType string) (result string, serr serror.SError) {
 	if serr := o.CreateBucket(ctx, bucket); serr != nil {
 		return result, serr
 	}

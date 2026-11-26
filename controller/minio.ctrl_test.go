@@ -96,3 +96,41 @@ func TestUploadFromReadSeekerLimits(t *testing.T) {
 		t.Fatal("STORAGE_ALLOWED_TYPES must replace the default list")
 	}
 }
+
+func TestUploadValidated(t *testing.T) {
+	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>`)
+	big := bytes.Repeat([]byte{0}, int(DefaultMaxUploadSize)+1)
+	tests := []struct {
+		name        string
+		body        []byte
+		contentType string
+		wantErr     bool
+	}{
+		{name: "svg checked by the caller", body: svg, contentType: "image/svg+xml"},
+		{name: "type outside the default allow-list", body: []byte{0x1A, 0x45, 0xDF, 0xA3}, contentType: "video/webm"},
+		{name: "larger than STORAGE_MAX_UPLOAD_SIZE", body: big, contentType: "video/mp4"},
+		{name: "params are dropped", body: svg, contentType: "image/svg+xml; charset=utf-8"},
+		{name: "html", body: []byte("<html></html>"), contentType: "text/html", wantErr: true},
+		{name: "javascript", body: []byte("alert(1)"), contentType: "application/javascript", wantErr: true},
+		{name: "empty", body: svg, contentType: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &fakeStorage{}
+			_, serr := objStorage{client: fake}.UploadValidated(context.Background(), bytes.NewReader(tt.body), "bucket", "file", tt.contentType)
+			if tt.wantErr {
+				if serr == nil || fake.puts != 0 {
+					t.Fatalf("upload accepted: err=%v puts=%d", serr, fake.puts)
+				}
+				return
+			}
+			if serr != nil {
+				t.Fatalf("upload rejected: %v", serr)
+			}
+			want, _, _ := strings.Cut(tt.contentType, ";")
+			if fake.contentType != want || fake.size != int64(len(tt.body)) {
+				t.Fatalf("stored type=%q size=%d, want %q %d", fake.contentType, fake.size, want, len(tt.body))
+			}
+		})
+	}
+}
