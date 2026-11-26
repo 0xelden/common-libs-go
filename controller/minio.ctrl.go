@@ -7,9 +7,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"mime"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/logger"
@@ -59,6 +62,7 @@ func (o objStorage) StreamObject(ctx context.Context, bucket, id string, c *gin.
 	//goland:noinspection GoUnhandledErrorResult
 	defer obj.Close()
 
+	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Content-Type", info.ContentType)
 	_, err := io.Copy(c.Writer, obj)
 	if err != nil {
@@ -107,7 +111,80 @@ func (o objStorage) HashObject(ctx context.Context, reader io.ReadSeeker, bucket
 	return result, nil
 }
 
+const DefaultMaxUploadSize int64 = 10 << 20
+
+var (
+	DefaultAllowedUploadTypes = []string{"image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "video/mp4"}
+	blockedUploadTypes        = []string{"text/html", "text/xml", "application/xml", "image/svg+xml", "text/javascript", "application/javascript"}
+)
+
+// allowedUploadTypes reads STORAGE_ALLOWED_TYPES (comma-separated MIME types),
+// falling back to DefaultAllowedUploadTypes.
+func allowedUploadTypes() []string {
+	raw := helper.Env(shared.StorageAllowedTypes)
+	if strings.TrimSpace(raw) == "" {
+		return DefaultAllowedUploadTypes
+	}
+	var types []string
+	for _, t := range strings.Split(raw, ",") {
+		if t = strings.ToLower(strings.TrimSpace(t)); t != "" {
+			types = append(types, t)
+		}
+	}
+	return types
+}
+
+// checkUpload enforces STORAGE_MAX_UPLOAD_SIZE (bytes, default
+// DefaultMaxUploadSize) and returns the content type sniffed from the first
+// 512 bytes. HTML, XML, SVG and JavaScript are always rejected; anything else
+// must be in allowedUploadTypes. The reader is rewound before returning.
+func checkUpload(reader io.ReadSeeker) (size int64, contentType string, serr serror.SError) {
+	size, err := reader.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, "", serror.NewFromError(err)
+	}
+	if maxSize := helper.StringToInt(helper.Env(shared.StorageMaxUploadSize), DefaultMaxUploadSize); size > maxSize {
+		return 0, "", serror.Newf("file is %d bytes, larger than the %d byte limit", size, maxSize)
+	}
+	if _, err = reader.Seek(0, io.SeekStart); err != nil {
+		return 0, "", serror.NewFromError(err)
+	}
+
+	header := make([]byte, 512)
+	n, err := io.ReadFull(reader, header)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return 0, "", serror.NewFromError(err)
+	}
+	if _, err = reader.Seek(0, io.SeekStart); err != nil {
+		return 0, "", serror.NewFromError(err)
+	}
+
+	contentType, _, err = mime.ParseMediaType(http.DetectContentType(header[:n]))
+	if err != nil {
+		return 0, "", serror.NewFromError(err)
+	}
+	for _, blocked := range blockedUploadTypes {
+		if contentType == blocked {
+			return 0, "", serror.Newf("file type %s is not allowed", contentType)
+		}
+	}
+	for _, allowed := range allowedUploadTypes() {
+		if contentType == allowed {
+			return size, contentType, nil
+		}
+	}
+	return 0, "", serror.Newf("file type %s is not allowed", contentType)
+}
+
+// UploadFromReadSeeker stores reader under its SHA-256 hash. The size and
+// content type are taken from the content itself (see checkUpload), not from
+// the size and contentType arguments, which come from the client.
 func (o objStorage) UploadFromReadSeeker(ctx context.Context, reader io.ReadSeeker, size int64, bucket, id, contentType string) (result string, serr serror.SError) {
+	size, contentType, serr = checkUpload(reader)
+	if serr != nil {
+		return result, serr
+	}
+
 	if serr := o.CreateBucket(ctx, bucket); serr != nil {
 		return result, serr
 	}

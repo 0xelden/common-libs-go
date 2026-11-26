@@ -25,6 +25,7 @@ type DeclTarget struct {
 }
 
 func generateFiles(table *Table, modulePath string, dtoTags map[string]map[string]string, withCtl bool) ([]GeneratedFile, error) {
+	table = resolveSensitiveColumns(table, dtoTags)
 	moduleName := moduleNameForTable(table.Name)
 	structName := structNameForTable(table.Name)
 
@@ -150,7 +151,7 @@ func writableColumns(table *Table, withId bool) []Column {
 		}
 	}
 	for _, col := range table.Columns {
-		if col.IsGenerated || col.IsIdentity || isIDColumn(col) || isAuditColumn(col.Name) || strings.EqualFold(col.Name, "status") {
+		if col.IsGenerated || col.IsIdentity || isIDColumn(col) || isAuditColumn(col.Name) || col.Sensitive || strings.EqualFold(col.Name, "status") {
 			continue
 		}
 		cols = append(cols, col)
@@ -256,9 +257,69 @@ func buildQueryFile(table *Table) string {
 func quotedColumnNames(table *Table) string {
 	names := make([]string, 0, len(table.Columns))
 	for _, col := range table.Columns {
+		if col.Sensitive {
+			continue
+		}
 		names = append(names, strconv.Quote(strings.ToLower(col.Name)))
 	}
 	return strings.Join(names, ", ")
+}
+
+// SensitiveTagKey is the model field tag that overrides isSensitiveColumn:
+// genrepo:"public" or genrepo:"sensitive".
+const SensitiveTagKey = "genrepo"
+
+var (
+	credentialSegments = map[string]struct{}{
+		"password": {}, "passwd": {}, "pwd": {}, "secret": {}, "token": {},
+		"otp": {}, "salt": {}, "apikey": {}, "privatekey": {},
+	}
+	credentialKeyPrefixes = map[string]struct{}{"api": {}, "private": {}, "secret": {}, "access": {}}
+)
+
+// isSensitiveColumn reports whether a column holds credentials, matching on
+// underscore-separated segments: the last segment names a credential
+// (refresh_token, password_salt), the column is a credential key (api_key,
+// private_key) or a hash of a credential (password_hash, or a bare hash).
+// file_hash, hashtags and token_expired_at do not match.
+func isSensitiveColumn(name string) bool {
+	segments := strings.Split(strings.ToLower(name), "_")
+	last := segments[len(segments)-1]
+	if _, ok := credentialSegments[last]; ok {
+		return true
+	}
+	if len(segments) == 1 {
+		return last == "hash"
+	}
+	prev := segments[len(segments)-2]
+	switch last {
+	case "key":
+		_, ok := credentialKeyPrefixes[prev]
+		return ok
+	case "hash", "digest":
+		_, ok := credentialSegments[prev]
+		return ok
+	}
+	return false
+}
+
+// resolveSensitiveColumns marks credential columns, honoring a genrepo tag
+// already present on the existing model field.
+func resolveSensitiveColumns(table *Table, dtoTags map[string]map[string]string) *Table {
+	resolved := *table
+	resolved.Columns = make([]Column, len(table.Columns))
+	for i, col := range table.Columns {
+		switch dtoTags[pascalCase(col.Name)][SensitiveTagKey] {
+		case "public":
+			col.Sensitive = false
+		case "sensitive":
+			col.Sensitive = true
+		default:
+			col.Sensitive = isSensitiveColumn(col.Name)
+		}
+		resolved.Columns[i] = col
+	}
+	return &resolved
 }
 
 func buildRepositoryFile(table *Table, modulePath string) string {

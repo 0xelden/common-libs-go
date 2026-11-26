@@ -15,4 +15,5 @@ type Column struct {
 	IsGenerated          bool
 	IsIdentity           bool
 	GenerationExpression string
+	Sensitive            bool
 }

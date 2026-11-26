@@ -174,6 +174,9 @@ func mergeDTOStructTags(col Column, existing map[string]string) string {
 	if strings.EqualFold(column, "id") {
 		tags["validate"] = idValidateRule(col)
 	}
+	if col.Sensitive {
+		tags["json"] = "-"
+	}
 
 	parts := make([]string, 0, len(tags))
 	seen := map[string]struct{}{}

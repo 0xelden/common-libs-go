@@ -90,6 +90,8 @@ task gen-columns                                                   # regenerate 
 
 Generation is **non-destructive**: hand-written code outside the generated markers is preserved on regeneration (`--force` overwrites everything).
 
+Credential columns (`password`, `passwd`, `pwd`, `secret`, `token`, `otp`, `salt`, `api_key`, `private_key`, or a hash of one such as `password_hash`) are left out of the filter/sort allow-lists and the create/edit forms, and get `json:"-"`. Override per field on the generated `Dto` with `genrepo:"public"` or `genrepo:"sensitive"`; the tag is kept on regeneration.
+
 ## Configuration
 
 All configuration comes from environment variables, loaded from `.env` via [godotenv](https://github.com/joho/godotenv). Copy the template and fill it in:
@@ -104,9 +106,9 @@ Key groups (see [.env.example](.env.example) for the full list):
 |---|---|
 | App | `APP_ENV`, `APP_TIMEZONE`, `APP_HTTP_PORT`, `APP_GRPC_PORT`, … |
 | Auth | `JWT_SECRET` (min 32 bytes), `JWT_ISSUER` (default `usm`), `JWT_AUDIENCE` (optional) |
-| Registry / Redis | `APP_REGISTRY_ADDR`, `REDIS_HOST`, `REDIS_PWD`, `REDIS_TLS` (default `true`), `JOB_REDIS_*` |
+| Registry / Redis | `APP_REGISTRY_ADDR`, `APP_REGISTRY_TLS` (default `true`), `REDIS_HOST`, `REDIS_PWD`, `REDIS_TLS` (default `true`), `JOB_REDIS_*` |
 | Database | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PWD`, `DB_NAME`, `DB_SSL_MODE` (default `require`) |
-| Object storage | `STORAGE_DRIVER` (`minio`/`azure`), `STORAGE_MINIO_*`, `STORAGE_AZURE_*` |
+| Object storage | `STORAGE_DRIVER` (`minio`/`azure`), `STORAGE_MINIO_*`, `STORAGE_AZURE_*`, `STORAGE_ALLOWED_TYPES`, `STORAGE_MAX_UPLOAD_SIZE` (default 10 MiB) |
 | Tracing | `UPTRACE_DSN` |
 
 ## Development

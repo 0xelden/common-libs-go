@@ -2,7 +2,6 @@ package connection
 
 import (
 	"context"
-	"crypto/tls"
 	"database/sql"
 	"fmt"
 	"os"
@@ -227,22 +226,15 @@ func ConnectSqliteInmemory() (*sql.DB, serror.SError) {
 
 func ConnectRedis() (*redis.Client, serror.SError) {
 	client := redis.NewClient(&redis.Options{
-		Addr:      os.Getenv("REDIS_HOST"),
-		Password:  helper.Env("REDIS_PWD", ""),
+		Addr:      os.Getenv(shared.RedisHost),
+		Password:  helper.Env(shared.RedisPwd, ""),
 		DB:        0,
-		TLSConfig: redisTLSConfig("REDIS_TLS"),
+		TLSConfig: helper.RedisTLSConfig(shared.RedisTLS),
 	})
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		return nil, serror.NewFromError(err)
 	}
 	return client, nil
-}
-
-func redisTLSConfig(envKey string) *tls.Config {
-	if !helper.ToBool(helper.Env(envKey), true) {
-		return nil
-	}
-	return &tls.Config{MinVersion: tls.VersionTLS12}
 }
 
 // ConnectAsynq builds the *asynq.RedisClientOpt used by both worker.NewConfig
@@ -252,12 +244,12 @@ func redisTLSConfig(envKey string) *tls.Config {
 // which also logs any already-running worker servers found on that Redis.
 func ConnectAsynq() (*asynq.RedisClientOpt, serror.SError) {
 	var (
-		db   = helper.StringToInt(helper.Env("JOB_REDIS_DB"), 1)
-		host = helper.Env("JOB_REDIS_HOST", "127.0.0.1")
-		port = helper.Env("JOB_REDIS_PORT", "6379")
-		pass = helper.Env("JOB_REDIS_PWD", "")
+		db   = helper.StringToInt(helper.Env(shared.JobRedisDB), 1)
+		host = helper.Env(shared.JobRedisHost, "127.0.0.1")
+		port = helper.Env(shared.JobRedisPort, "6379")
+		pass = helper.Env(shared.JobRedisPwd, "")
 		addr = fmt.Sprintf("%s:%s", host, port)
-		opts = &asynq.RedisClientOpt{Addr: addr, Password: pass, DB: int(db), TLSConfig: redisTLSConfig("JOB_REDIS_TLS")}
+		opts = &asynq.RedisClientOpt{Addr: addr, Password: pass, DB: int(db), TLSConfig: helper.RedisTLSConfig(shared.JobRedisTLS)}
 		insp = asynq.NewInspector(opts)
 	)
 

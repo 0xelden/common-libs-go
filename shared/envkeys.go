@@ -23,6 +23,7 @@ const (
 	AppBasepoint    = "APP_BASEPOINT"
 	AppRegistryAddr = "APP_REGISTRY_ADDR"
 	AppRegistryPwd  = "APP_REGISTRY_PWD" // #nosec G101
+	AppRegistryTLS  = "APP_REGISTRY_TLS"
 	AppTimezone     = "APP_TIMEZONE"
 	AppNamespace    = "APP_NAMESPACE"
 	AppCluster      = "APP_CLUSTER"
@@ -66,6 +67,19 @@ const (
 	QSConnLifetime = "QS_CONN_LIFETIME"
 	QSConnMaxIdle  = "QS_CONN_MAX_IDLE"
 	QSConnMaxOpen  = "QS_CONN_MAX_OPEN"
+
+	RedisHost = "REDIS_HOST"
+	RedisPwd  = "REDIS_PWD" // #nosec G101
+	RedisTLS  = "REDIS_TLS"
+
+	JobRedisHost = "JOB_REDIS_HOST"
+	JobRedisPort = "JOB_REDIS_PORT"
+	JobRedisPwd  = "JOB_REDIS_PWD" // #nosec G101
+	JobRedisDB   = "JOB_REDIS_DB"
+	JobRedisTLS  = "JOB_REDIS_TLS"
+
+	StorageAllowedTypes  = "STORAGE_ALLOWED_TYPES"
+	StorageMaxUploadSize = "STORAGE_MAX_UPLOAD_SIZE"
 
 	BrokerAddr = "BROKER_ADDR"
 	BrokerPwd  = "BROKER_PWD"
