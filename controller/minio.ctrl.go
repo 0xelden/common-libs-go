@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/0xelden/common-libs-go/helper"
 	"github.com/0xelden/common-libs-go/logger"
@@ -63,6 +64,9 @@ func (o objStorage) StreamObject(ctx context.Context, bucket, id string, c *gin.
 
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("Content-Type", info.ContentType)
+	if mediaType, _, _ := mime.ParseMediaType(info.ContentType); mediaType == "image/svg+xml" {
+		c.Header("Content-Security-Policy", svgCSP)
+	}
 	_, err := io.Copy(c.Writer, obj)
 	if err != nil {
 		logger.Infof("stream %s error %v", id, err)
@@ -112,9 +116,20 @@ func (o objStorage) HashObject(ctx context.Context, reader io.ReadSeeker, bucket
 
 const DefaultMaxUploadSize int64 = 10 << 20
 
+const svgCSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'none'; sandbox"
+
+func contains(list []string, value string) bool {
+	for _, v := range list {
+		if strings.EqualFold(v, value) {
+			return true
+		}
+	}
+	return false
+}
+
 var (
 	DefaultAllowedUploadTypes = []string{"image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "video/mp4"}
-	validatedRefusedTypes     = []string{"text/html", "application/xhtml+xml", "text/javascript", "application/javascript"}
+	scriptTypes               = []string{"text/html", "application/xhtml+xml", "text/javascript", "application/javascript", "application/x-javascript", "text/ecmascript", "application/ecmascript"}
 )
 
 // checkUpload enforces DefaultMaxUploadSize and returns the content type
@@ -166,18 +181,19 @@ func (o objStorage) UploadFromReadSeeker(ctx context.Context, reader io.ReadSeek
 }
 
 // UploadValidated stores reader with a contentType the caller has already
-// derived from the content (sniffed, allow-listed and, for SVG, sanitized),
-// skipping checkUpload's allow-list and size limit. Never pass the client's
-// Content-Type header here. HTML and JavaScript are still refused.
-func (o objStorage) UploadValidated(ctx context.Context, reader io.ReadSeeker, bucket, id, contentType string) (result string, serr serror.SError) {
+// derived from the content, skipping checkUpload's sniffing and size limit.
+// Never pass the client's Content-Type header here. The type must be in
+// DefaultAllowedUploadTypes or extraAllowed; HTML and JavaScript are refused
+// even when listed. SVG is not allowed by default: a service that passes
+// image/svg+xml must sanitize it first, and StreamObject serves it with a CSP
+// that blocks scripts.
+func (o objStorage) UploadValidated(ctx context.Context, reader io.ReadSeeker, bucket, id, contentType string, extraAllowed ...string) (result string, serr serror.SError) {
 	contentType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
 		return result, serror.Newf("invalid content type: %v", err)
 	}
-	for _, refused := range validatedRefusedTypes {
-		if contentType == refused {
-			return result, serror.Newf("file type %s is not allowed", contentType)
-		}
+	if contains(scriptTypes, contentType) || !(contains(DefaultAllowedUploadTypes, contentType) || contains(extraAllowed, contentType)) {
+		return result, serror.Newf("file type %s is not allowed", contentType)
 	}
 	size, err := reader.Seek(0, io.SeekEnd)
 	if err != nil {

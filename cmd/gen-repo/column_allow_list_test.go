@@ -2,6 +2,7 @@ package main
 
 import (
 	"go/format"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -131,6 +132,35 @@ func TestGenerateFilesSensitiveColumnOverride(t *testing.T) {
 	}
 	if strings.Contains(model, "OtpCode: f.OtpCode") {
 		t.Fatalf("forms must not accept an opted-in sensitive column:\n%s", model)
+	}
+}
+
+func TestGenerateFilesWarnsOnPublicCredentialColumn(t *testing.T) {
+	var warnings strings.Builder
+	warnOut = &warnings
+	t.Cleanup(func() { warnOut = os.Stderr })
+
+	table := &Table{
+		Name: "demo_user",
+		Columns: []Column{
+			{Name: "id", RawType: "uuid", IsPrimary: true},
+			{Name: "password_hash", RawType: "text"},
+			{Name: "content_hash", RawType: "text"},
+		},
+	}
+	if _, err := generateFiles(table, "gitlab.com/example/project", map[string]map[string]string{
+		"PasswordHash": {SensitiveTagKey: "public"},
+		"ContentHash":  {SensitiveTagKey: "public"},
+	}, false); err != nil {
+		t.Fatalf("generateFiles returned error: %v", err)
+	}
+
+	got := warnings.String()
+	if !strings.Contains(got, "demo_user.password_hash") {
+		t.Fatalf("expected a warning for password_hash marked public, got %q", got)
+	}
+	if strings.Contains(got, "content_hash") {
+		t.Fatalf("content_hash is not a credential column, got warning %q", got)
 	}
 }
 

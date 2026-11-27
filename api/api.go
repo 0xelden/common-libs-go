@@ -84,6 +84,17 @@ func Error(c *gin.Context, err error, code ...int) {
 	Response(c, httpCode, serror.NewFromErrors(1, err), nil)
 }
 
+// clientError is the message sent to the client. 5xx errors come from
+// infrastructure (drivers, Redis, network) and may name hosts or users, so
+// outside verbose mode the client only gets the status text; the original
+// error stays on the span. 4xx messages are written for the user and kept.
+func clientError(code int, err error, verbose bool) string {
+	if code >= http.StatusInternalServerError && !verbose {
+		return http.StatusText(code)
+	}
+	return err.Error()
+}
+
 func Response(c *gin.Context, code int, error serror.SError, data interface{}) {
 	var (
 		failed = code >= 400
@@ -108,7 +119,7 @@ func Response(c *gin.Context, code int, error serror.SError, data interface{}) {
 	)
 
 	if error != nil {
-		err = error.Error()
+		err = clientError(code, error, verbose)
 	}
 
 	res := response{

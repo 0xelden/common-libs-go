@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/0xelden/common-libs-go/objstorage"
 	"github.com/0xelden/common-libs-go/serror"
+	"github.com/gin-gonic/gin"
 )
 
 type fakeStorage struct {
@@ -88,25 +91,33 @@ func TestUploadFromReadSeekerSizeLimit(t *testing.T) {
 
 func TestUploadValidated(t *testing.T) {
 	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>`)
+	webm := []byte{0x1A, 0x45, 0xDF, 0xA3}
 	big := bytes.Repeat([]byte{0}, int(DefaultMaxUploadSize)+1)
 	tests := []struct {
 		name        string
 		body        []byte
 		contentType string
+		extra       []string
 		wantErr     bool
 	}{
-		{name: "svg checked by the caller", body: svg, contentType: "image/svg+xml"},
-		{name: "type outside the default allow-list", body: []byte{0x1A, 0x45, 0xDF, 0xA3}, contentType: "video/webm"},
+		{name: "default type", body: pngHeader, contentType: "image/png"},
 		{name: "larger than DefaultMaxUploadSize", body: big, contentType: "video/mp4"},
-		{name: "params are dropped", body: svg, contentType: "image/svg+xml; charset=utf-8"},
-		{name: "html", body: []byte("<html></html>"), contentType: "text/html", wantErr: true},
-		{name: "javascript", body: []byte("alert(1)"), contentType: "application/javascript", wantErr: true},
+		{name: "extra type from the caller", body: webm, contentType: "video/webm", extra: []string{"video/webm"}},
+		{name: "svg allowed by the caller", body: svg, contentType: "image/svg+xml", extra: []string{"image/svg+xml"}},
+		{name: "params are dropped", body: svg, contentType: "image/svg+xml; charset=utf-8", extra: []string{"image/svg+xml"}},
+		{name: "svg by default", body: svg, contentType: "image/svg+xml", wantErr: true},
+		{name: "type outside the allow-list", body: webm, contentType: "video/webm", wantErr: true},
+		{name: "text/xml", body: []byte("<a/>"), contentType: "text/xml", wantErr: true},
+		{name: "application/x-javascript", body: []byte("alert(1)"), contentType: "application/x-javascript", wantErr: true},
+		{name: "text/ecmascript", body: []byte("alert(1)"), contentType: "text/ecmascript", wantErr: true},
+		{name: "html even when listed", body: []byte("<html></html>"), contentType: "text/html", extra: []string{"text/html"}, wantErr: true},
+		{name: "javascript even when listed", body: []byte("alert(1)"), contentType: "application/javascript", extra: []string{"application/javascript"}, wantErr: true},
 		{name: "empty", body: svg, contentType: "", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := &fakeStorage{}
-			_, serr := objStorage{client: fake}.UploadValidated(context.Background(), bytes.NewReader(tt.body), "bucket", "file", tt.contentType)
+			_, serr := objStorage{client: fake}.UploadValidated(context.Background(), bytes.NewReader(tt.body), "bucket", "file", tt.contentType, tt.extra...)
 			if tt.wantErr {
 				if serr == nil || fake.puts != 0 {
 					t.Fatalf("upload accepted: err=%v puts=%d", serr, fake.puts)
@@ -119,6 +130,49 @@ func TestUploadValidated(t *testing.T) {
 			want, _, _ := strings.Cut(tt.contentType, ";")
 			if fake.contentType != want || fake.size != int64(len(tt.body)) {
 				t.Fatalf("stored type=%q size=%d, want %q %d", fake.contentType, fake.size, want, len(tt.body))
+			}
+		})
+	}
+}
+
+type streamStorage struct {
+	fakeStorage
+	contentType string
+}
+
+func (s *streamStorage) StatObject(context.Context, string, string) (objstorage.ObjectInfo, serror.SError) {
+	return objstorage.ObjectInfo{ContentType: s.contentType}, nil
+}
+
+func (s *streamStorage) GetObject(context.Context, string, string) (io.ReadCloser, serror.SError) {
+	return io.NopCloser(strings.NewReader("body")), nil
+}
+
+func TestStreamObjectSVGPolicy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tt := range []struct {
+		contentType string
+		wantCSP     bool
+	}{
+		{contentType: "image/svg+xml", wantCSP: true},
+		{contentType: "image/svg+xml; charset=utf-8", wantCSP: true},
+		{contentType: "image/png"},
+		{contentType: "application/pdf"},
+	} {
+		t.Run(tt.contentType, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/x", nil)
+
+			if serr := (objStorage{client: &streamStorage{contentType: tt.contentType}}).StreamObject(context.Background(), "bucket", "id", c); serr != nil {
+				t.Fatalf("StreamObject: %v", serr)
+			}
+			csp := w.Header().Get("Content-Security-Policy")
+			if tt.wantCSP != strings.Contains(csp, "script-src 'none'") {
+				t.Fatalf("Content-Security-Policy = %q, want script-src 'none': %v", csp, tt.wantCSP)
+			}
+			if w.Header().Get("X-Content-Type-Options") != "nosniff" {
+				t.Fatal("missing X-Content-Type-Options: nosniff")
 			}
 		})
 	}

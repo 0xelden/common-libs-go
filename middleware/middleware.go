@@ -12,6 +12,7 @@ import (
 	"github.com/0xelden/common-libs-go/connection"
 	"github.com/0xelden/common-libs-go/db"
 	"github.com/0xelden/common-libs-go/helper"
+	"github.com/0xelden/common-libs-go/logger"
 	authModels "github.com/0xelden/common-libs-go/models/auth"
 	"github.com/0xelden/common-libs-go/shared"
 	uap "github.com/Gohelraj/go_ip_device_parser"
@@ -279,21 +280,27 @@ func SetMetadata(basepoint string, noRefURI ...string) gin.HandlerFunc {
 	}
 }
 
+// guardSessionRedis is the client GuardRoute reads sessions from. It is built
+// once without a blocking ping; go-redis reconnects by itself, so an outage
+// surfaces as a per-command error (503) instead of a retry under a lock.
+var guardSessionRedis = sync.OnceValue(connection.NewRedisClient)
+
 var (
-	guardRedisMu     sync.Mutex
-	guardRedisClient *redis.Client
+	errSessionExpired     = errors.New("session not found or expired")
+	errSessionUnavailable = errors.New("session store unavailable")
 )
 
-// guardSessionRedis lazily connects (retrying on a prior failed attempt) a
-// Redis client used by GuardRoute to look up session liveness/data, mirroring
-// the on-demand connection pattern SetWsCredential already relies on.
-func guardSessionRedis() *redis.Client {
-	guardRedisMu.Lock()
-	defer guardRedisMu.Unlock()
-	if guardRedisClient == nil {
-		guardRedisClient, _ = connection.ConnectRedis()
+// abortSessionLookup answers 401 when the session key is missing (redis.Nil)
+// and 503 with a log entry for any other Redis error, so an outage does not
+// look like every user being logged out.
+func abortSessionLookup(ctx *gin.Context, key string, err error) {
+	if errors.Is(err, redis.Nil) {
+		api.Error(ctx, errSessionExpired, http.StatusUnauthorized)
+	} else {
+		logger.Err(fmt.Errorf("guard: reading %s: %w", key, err))
+		api.Error(ctx, errSessionUnavailable, http.StatusServiceUnavailable)
 	}
-	return guardRedisClient
+	ctx.Abort()
 }
 
 // GuardRoute guard a route with a bearer token
@@ -335,28 +342,26 @@ func guardRoute(publicPath, builtinPath []string) gin.HandlerFunc {
 			return
 		}
 
-		sessionExpired := errors.New("session not found or expired")
 		rdb := guardSessionRedis()
-		if rdb == nil {
-			api.Error(ctx, sessionExpired, http.StatusUnauthorized)
-			ctx.Abort()
-			return
-		}
 
 		reqCtx := ctx.Request.Context()
 
 		// liveness marker set at login, deleted on revoke; its absence means
 		// the token has been revoked even if the JWT itself hasn't expired.
 		if _, err := rdb.Get(reqCtx, fmt.Sprintf("session-%s:%s", claims.UserId, claims.ID)).Result(); err != nil {
-			api.Error(ctx, sessionExpired, http.StatusUnauthorized)
-			ctx.Abort()
+			abortSessionLookup(ctx, "session marker", err)
 			return
 		}
 
 		var session authModels.SessionEnvelope
 		raw, err := rdb.Get(reqCtx, fmt.Sprintf("ses-data-%s", claims.UserId)).Result()
-		if err != nil || json.Unmarshal([]byte(raw), &session) != nil {
-			api.Error(ctx, sessionExpired, http.StatusUnauthorized)
+		if err != nil {
+			abortSessionLookup(ctx, "session data", err)
+			return
+		}
+		if err := json.Unmarshal([]byte(raw), &session); err != nil {
+			logger.Err(fmt.Errorf("guard: decoding session data for %s: %w", claims.UserId, err))
+			api.Error(ctx, errSessionExpired, http.StatusUnauthorized)
 			ctx.Abort()
 			return
 		}

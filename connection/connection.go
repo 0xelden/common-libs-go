@@ -224,13 +224,19 @@ func ConnectSqliteInmemory() (*sql.DB, serror.SError) {
 	return db, nil
 }
 
-func ConnectRedis() (*redis.Client, serror.SError) {
-	client := redis.NewClient(&redis.Options{
+// NewRedisClient builds the REDIS_* client without contacting the server;
+// go-redis connects lazily and reconnects on its own.
+func NewRedisClient() *redis.Client {
+	return redis.NewClient(&redis.Options{
 		Addr:      os.Getenv(shared.RedisHost),
 		Password:  helper.Env(shared.RedisPwd, ""),
 		DB:        0,
 		TLSConfig: helper.RedisTLSConfig(shared.RedisTLS),
 	})
+}
+
+func ConnectRedis() (*redis.Client, serror.SError) {
+	client := NewRedisClient()
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		return nil, serror.NewFromError(err)
 	}

@@ -14,7 +14,7 @@ type ObjectStorageUsecase interface {
 	HashObject(ctx context.Context, reader io.ReadSeeker, bucket string) (result string, serr serror.SError)
 	UploadFromHeader(ctx context.Context, bucket string, fileHeader *multipart.FileHeader) (id string, serr serror.SError)
 	UploadFromReadSeeker(ctx context.Context, reader io.ReadSeeker, size int64, bucket, id, contentType string) (result string, serr serror.SError)
-	UploadValidated(ctx context.Context, reader io.ReadSeeker, bucket, id, contentType string) (result string, serr serror.SError)
+	UploadValidated(ctx context.Context, reader io.ReadSeeker, bucket, id, contentType string, extraAllowed ...string) (result string, serr serror.SError)
 	StreamObject(ctx context.Context, bucket, id string, c *gin.Context) (serr serror.SError)
 	DownloadObject(ctx context.Context, bucket, id string) (name string, result []byte, serr serror.SError)
 	DeleteObject(ctx context.Context, bucket, id string) (serr serror.SError)

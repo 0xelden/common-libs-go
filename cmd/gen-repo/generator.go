@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"go/token"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -305,6 +306,8 @@ func isSensitiveColumn(name string) bool {
 
 // resolveSensitiveColumns marks credential columns, honoring a genrepo tag
 // already present on the existing model field.
+var warnOut io.Writer = os.Stderr
+
 func resolveSensitiveColumns(table *Table, dtoTags map[string]map[string]string) *Table {
 	resolved := *table
 	resolved.Columns = make([]Column, len(table.Columns))
@@ -312,6 +315,9 @@ func resolveSensitiveColumns(table *Table, dtoTags map[string]map[string]string)
 		switch dtoTags[pascalCase(col.Name)][SensitiveTagKey] {
 		case "public":
 			col.Sensitive = false
+			if isSensitiveColumn(col.Name) {
+				fmt.Fprintf(warnOut, "gen-repo: warning: %s.%s looks like a credential column but genrepo:\"public\" exposes it in JSON, filter/sort and the create/edit forms\n", table.Name, col.Name)
+			}
 		case "sensitive":
 			col.Sensitive = true
 		default:
