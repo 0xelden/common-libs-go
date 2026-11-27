@@ -274,6 +274,9 @@ func (i *IndexParam) parseFilterAst(exp any) (res []string, err error) {
 		}
 
 	case fexpr.Expr:
+		if !isFilterOperand(exp.Left) || !isFilterOperand(exp.Right) {
+			return nil, errors.New("invalid filter")
+		}
 		i.trackFilterColumn(exp.Left)
 		i.trackFilterColumn(exp.Right)
 		left := helper.If(exp.Left.Type == fexpr.TokenText, helper.QuoteLiteral(exp.Left.Literal), exp.Left.Literal)
@@ -313,6 +316,16 @@ func (i *IndexParam) parseFilterAst(exp any) (res []string, err error) {
 	}
 
 	return res, nil
+}
+
+// isFilterOperand accepts columns and literals only. Functions would reach the
+// SQL without passing the column allow-list.
+func isFilterOperand(token fexpr.Token) bool {
+	switch token.Type {
+	case fexpr.TokenIdentifier, fexpr.TokenText, fexpr.TokenNumber:
+		return true
+	}
+	return false
 }
 
 func (i *IndexParam) trackFilterColumn(token fexpr.Token) {

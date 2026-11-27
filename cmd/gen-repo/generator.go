@@ -304,10 +304,10 @@ func isSensitiveColumn(name string) bool {
 	return false
 }
 
-// resolveSensitiveColumns marks credential columns, honoring a genrepo tag
-// already present on the existing model field.
 var warnOut io.Writer = os.Stderr
 
+// resolveSensitiveColumns marks credential columns, honoring a genrepo tag
+// already present on the existing model field.
 func resolveSensitiveColumns(table *Table, dtoTags map[string]map[string]string) *Table {
 	resolved := *table
 	resolved.Columns = make([]Column, len(table.Columns))

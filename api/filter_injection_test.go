@@ -28,6 +28,30 @@ func TestFilterBackslashQuoteStaysInsideLiteral(t *testing.T) {
 	}
 }
 
+func TestFilterRejectsFunctionOperands(t *testing.T) {
+	for _, filter := range []string{
+		`password_hash()~'a%'`,
+		`result.password_hash(1)~'a%'`,
+		`name='x' && password_hash(0)>'a'`,
+		`'a'<password_hash()`,
+		`(id=1 || lower(password_hash)~'a%')`,
+	} {
+		p := &IndexParam{FilterMap: map[string]string{}}
+		got, err := p.parseFilter(filter)
+		if err == nil {
+			t.Errorf("parseFilter(%q) = %q, want an error", filter, got)
+		}
+	}
+
+	p := &IndexParam{FilterMap: map[string]string{}}
+	if _, err := p.parseFilter(`id=1 && name~'a%'`); err != nil {
+		t.Fatalf("plain column filter rejected: %v", err)
+	}
+	if err := p.ValidateColumns([]string{"id", "name"}, nil); err != nil {
+		t.Fatalf("plain column filter failed the allow-list: %v", err)
+	}
+}
+
 func readStandardLiteral(s string) (value, rest string, ok bool) {
 	if !strings.HasPrefix(s, "'") {
 		return "", s, false

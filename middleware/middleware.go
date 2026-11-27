@@ -43,9 +43,17 @@ var commitID = sync.OnceValue(func() string {
 	return helper.First(helper.GitCommitID())
 })
 
+// RegisterService installs the shared middleware, including the guard, on
+// service. It must run before any Group or route is created: gin copies the
+// middleware into a group or route when it is created, so anything made
+// earlier is served without the guard. Registered routes are rejected; a group
+// created earlier cannot be detected.
 func RegisterService(httpBasePoint string, service *gin.Engine, options ...Option) error {
 	if httpBasePoint == "" {
 		return errors.New("Middleware registration failed, invalid service http basepoint")
+	}
+	if routes := service.Routes(); len(routes) > 0 {
+		return fmt.Errorf("Middleware registration failed: %s %s was registered before RegisterService and would skip the guard", routes[0].Method, routes[0].Path)
 	}
 
 	m := &middleware{

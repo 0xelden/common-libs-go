@@ -6,10 +6,28 @@ import (
 	"database/sql/driver"
 	"errors"
 	"net"
+	"net/http"
 
 	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 )
+
+// inputErrorCode maps Postgres errors caused by the submitted data: class 23
+// (unique, foreign key, check, not null) to 409 and class 22 (malformed or
+// out-of-range values) to 400.
+func inputErrorCode(err error) (int, bool) {
+	var pqErr *pq.Error
+	if !errors.As(err, &pqErr) {
+		return 0, false
+	}
+	switch pqErr.Code.Class() {
+	case "23":
+		return http.StatusConflict, true
+	case "22":
+		return http.StatusBadRequest, true
+	}
+	return 0, false
+}
 
 // isInfraError reports whether err comes from Postgres, Redis, the network or
 // a deadline rather than from input the caller can fix. Such errors are

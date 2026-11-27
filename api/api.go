@@ -119,10 +119,18 @@ func Response(c *gin.Context, code int, error serror.SError, data interface{}) {
 	)
 
 	if error != nil {
-		if code < http.StatusInternalServerError && isInfraError(error) {
-			code = http.StatusInternalServerError
+		if input, ok := inputErrorCode(error); ok {
+			code = input
+			err = http.StatusText(code)
+			if verbose {
+				err = error.Error()
+			}
+		} else {
+			if code < http.StatusInternalServerError && isInfraError(error) {
+				code = http.StatusInternalServerError
+			}
+			err = clientError(code, error, verbose)
 		}
-		err = clientError(code, error, verbose)
 	}
 
 	res := response{

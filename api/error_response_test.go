@@ -61,6 +61,55 @@ func TestErrorHidesInfrastructureDetails(t *testing.T) {
 	}
 }
 
+func TestErrorMapsInputPostgresErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	unique := &pq.Error{Code: "23505", Message: `duplicate key value violates unique constraint "contents_slug_key"`, Constraint: "contents_slug_key", Table: "contents"}
+	badUUID := &pq.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "abc"`}
+	tests := []struct {
+		name     string
+		err      error
+		code     []int
+		verbose  bool
+		wantCode int
+		wantMsg  string
+	}{
+		{name: "unique violation", err: unique, wantCode: http.StatusConflict, wantMsg: "Conflict"},
+		{name: "foreign key violation", err: &pq.Error{Code: "23503", Message: `violates foreign key constraint "contents_category_fkey"`}, wantCode: http.StatusConflict, wantMsg: "Conflict"},
+		{name: "invalid uuid", err: badUUID, wantCode: http.StatusBadRequest, wantMsg: "Bad Request"},
+		{name: "value too long", err: &pq.Error{Code: "22001", Message: "value too long for type character varying(255)"}, wantCode: http.StatusBadRequest, wantMsg: "Bad Request"},
+		{name: "handler passed 500", err: serror.NewFromError(fmt.Errorf("create content: %w", unique)), code: []int{http.StatusInternalServerError}, wantCode: http.StatusConflict, wantMsg: "Conflict"},
+		{name: "connection failure stays 500", err: &pq.Error{Code: "08006", Message: "connection failure"}, wantCode: http.StatusInternalServerError, wantMsg: "Internal Server Error"},
+		{name: "deadlock stays 500", err: &pq.Error{Code: "40P01", Message: "deadlock detected"}, wantCode: http.StatusInternalServerError, wantMsg: "Internal Server Error"},
+		{name: "verbose keeps the message", err: unique, verbose: true, wantCode: http.StatusConflict, wantMsg: unique.Error()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			old := shared.Staging
+			shared.Staging = tt.verbose
+			t.Cleanup(func() { shared.Staging = old })
+
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/x", nil)
+			Error(c, tt.err, tt.code...)
+
+			var body struct {
+				Code  int    `json:"code"`
+				Error string `json:"error"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode response: %v\n%s", err, w.Body.String())
+			}
+			if w.Code != tt.wantCode || body.Code != tt.wantCode || body.Error != tt.wantMsg {
+				t.Fatalf("status = %d code = %d error = %q, want %d %q", w.Code, body.Code, body.Error, tt.wantCode, tt.wantMsg)
+			}
+			if !tt.verbose && (strings.Contains(w.Body.String(), "contents") || strings.Contains(w.Body.String(), "abc")) {
+				t.Fatalf("response leaks the constraint or value: %s", w.Body.String())
+			}
+		})
+	}
+}
+
 func TestErrorTreatsInfrastructureFailuresAsInternal(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	dial := &net.OpError{Op: "dial", Net: "tcp", Addr: &net.TCPAddr{IP: net.ParseIP("10.1.2.3"), Port: 5432}, Err: errors.New("connect: connection refused")}
