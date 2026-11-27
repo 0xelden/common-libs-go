@@ -74,6 +74,10 @@ func (ox serrorObj) Cause() error {
 	return ox.err
 }
 
+func (ox serrorObj) Unwrap() error {
+	return ox.err
+}
+
 func (ox serrorObj) Code() int {
 	return ox.code
 }
