@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -125,7 +126,10 @@ func TestErrorTreatsInfrastructureFailuresAsInternal(t *testing.T) {
 		{name: "postgres auth error", err: auth, wantCode: http.StatusInternalServerError, wantMsg: "Internal Server Error"},
 		{name: "wrapped in serror", err: serror.NewFromError(fmt.Errorf("index example: %w", auth)), wantCode: http.StatusInternalServerError, wantMsg: "Internal Server Error"},
 		{name: "deadline", err: context.DeadlineExceeded, wantCode: http.StatusInternalServerError, wantMsg: "Internal Server Error"},
-		{name: "redis down", err: redis.ErrClosed, wantCode: http.StatusBadRequest, wantMsg: redis.ErrClosed.Error()},
+		{name: "redis client closed", err: redis.ErrClosed, wantCode: http.StatusInternalServerError, wantMsg: "Internal Server Error"},
+		{name: "redis pool timeout", err: fmt.Errorf("read session: %w", redis.ErrPoolTimeout), wantCode: http.StatusInternalServerError, wantMsg: "Internal Server Error"},
+		{name: "tls unknown authority", err: fmt.Errorf("dial 10.1.2.3:6380: %w", x509.UnknownAuthorityError{}), wantCode: http.StatusInternalServerError, wantMsg: "Internal Server Error"},
+		{name: "tls hostname mismatch", err: x509.HostnameError{Certificate: &x509.Certificate{}, Host: "10.1.2.3"}, wantCode: http.StatusInternalServerError, wantMsg: "Internal Server Error"},
 		{name: "verbose keeps the message", err: auth, verbose: true, wantCode: http.StatusInternalServerError, wantMsg: auth.Error()},
 		{name: "user error stays 400", err: serror.New("invalid id, expected to be a uuid"), wantCode: http.StatusBadRequest, wantMsg: "invalid id, expected to be a uuid"},
 		{name: "missing redis key stays 400", err: redis.Nil, wantCode: http.StatusBadRequest, wantMsg: redis.Nil.Error()},
