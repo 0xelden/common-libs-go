@@ -35,7 +35,9 @@ func NewSortParamBinding(ctx *gin.Context, binding binding.Binding) (SortParam, 
 	param := SortParam{
 		Sort: []string{},
 	}
-	_ = ctx.MustBindWith(param, binding) // ignore error here
+	if err := ctx.ShouldBindWith(&param, binding); err != nil {
+		return SortParam{}, err
+	}
 	if len(param.Sort) == 0 {
 		return param, nil
 	}

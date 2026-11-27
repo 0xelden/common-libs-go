@@ -46,7 +46,7 @@ func (v *ViewParam) AddFilter(stmt string, args ...any) error {
 
 func NewViewParam(ctx *gin.Context, binding binding.Binding, id string, filter ...string) (*ViewParam, error) {
 	param := &ViewParam{Filters: filter}
-	if err := ctx.MustBindWith(param, binding); err != nil {
+	if err := ctx.ShouldBindWith(param, binding); err != nil {
 		return nil, err
 	}
 	param.Id = id

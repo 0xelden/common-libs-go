@@ -53,7 +53,9 @@ func NewIndexParam(ctx *gin.Context, binding binding.Binding) (*IndexParam, erro
 		FileType:  "xlsx",
 		FilterMap: map[string]string{},
 	}
-	_ = ctx.MustBindWith(param, binding) // ignore error here
+	if err := ctx.ShouldBindWith(param, binding); err != nil {
+		return nil, err
+	}
 	// omit_total dibaca langsung dari query (fallback ke context): handler umumnya baru memanggil
 	// SetContext SETELAH NewIndexParam (lihat template cmd/gen-repo), sehingga nilai di context
 	// belum terisi di titik ini dan pembesaran size ke maxPageSize tidak pernah aktif.
