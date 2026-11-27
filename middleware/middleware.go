@@ -81,7 +81,10 @@ func RegisterService(httpBasePoint string, service *gin.Engine, options ...Optio
 	}
 
 	if m.isWebsocket {
-		client, _ := connection.ConnectRedis()
+		client, serr := connection.ConnectRedis()
+		if serr != nil {
+			return fmt.Errorf("Middleware registration failed: websocket credentials: %w", serr)
+		}
 		service.Use(SetWsCredential(client, "wsk"))
 	}
 
@@ -176,13 +179,23 @@ func HandleNotfound() gin.HandlerFunc {
 	}
 }
 
+// wsProtocolPrefix is the fixed prefix the client puts before the credential
+// id in Sec-WebSocket-Protocol.
+const wsProtocolPrefix = 8
+
+// SetWsCredential resolves the websocket credential id to its token. The id
+// comes from Sec-WebSocket-Protocol; the ?<key>-debug-key query is accepted
+// only with APP_ENV=local, since query strings end up in access logs.
 func SetWsCredential(client *redis.Client, key string) gin.HandlerFunc {
+	debugKey := helper.Env(shared.AppEnv) == "local"
 	return func(c *gin.Context) {
-		id := c.GetHeader("Sec-WebSocket-Protocol")
-		if id == "" {
+		var id string
+		if proto := c.GetHeader("Sec-WebSocket-Protocol"); proto != "" {
+			if len(proto) > wsProtocolPrefix {
+				id = proto[wsProtocolPrefix:]
+			}
+		} else if debugKey {
 			id = c.Query(key + "-debug-key")
-		} else {
-			id = id[8:]
 		}
 		if !helper.IsValidUUID(id) {
 			_ = c.AbortWithError(http.StatusInternalServerError, errors.New("invalid ws credential"))
