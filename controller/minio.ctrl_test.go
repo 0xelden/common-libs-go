@@ -112,6 +112,15 @@ func TestUploadValidated(t *testing.T) {
 		{name: "text/ecmascript", body: []byte("alert(1)"), contentType: "text/ecmascript", wantErr: true},
 		{name: "html even when listed", body: []byte("<html></html>"), contentType: "text/html", extra: []string{"text/html"}, wantErr: true},
 		{name: "javascript even when listed", body: []byte("alert(1)"), contentType: "application/javascript", extra: []string{"application/javascript"}, wantErr: true},
+		{name: "text/xml even when listed", body: []byte("<a/>"), contentType: "text/xml", extra: []string{"text/xml"}, wantErr: true},
+		{name: "application/xml even when listed", body: []byte("<a/>"), contentType: "application/xml", extra: []string{"application/xml"}, wantErr: true},
+		{name: "+xml even when listed", body: []byte("<a/>"), contentType: "application/rss+xml", extra: []string{"application/rss+xml"}, wantErr: true},
+		{name: "xhtml+xml even when listed", body: []byte("<html/>"), contentType: "application/xhtml+xml", extra: []string{"application/xhtml+xml"}, wantErr: true},
+		{name: "text/xsl even when listed", body: []byte("<a/>"), contentType: "text/xsl", extra: []string{"text/xsl"}, wantErr: true},
+		{name: "vbscript even when listed", body: []byte("x"), contentType: "text/vbscript", extra: []string{"text/vbscript"}, wantErr: true},
+		{name: "flash even when listed", body: []byte("FWS"), contentType: "application/x-shockwave-flash", extra: []string{"application/x-shockwave-flash"}, wantErr: true},
+		{name: "mixed-replace even when listed", body: []byte("x"), contentType: "multipart/x-mixed-replace", extra: []string{"multipart/x-mixed-replace"}, wantErr: true},
+		{name: "uppercase type", body: []byte("<a/>"), contentType: "Text/XML", extra: []string{"text/xml"}, wantErr: true},
 		{name: "empty", body: svg, contentType: "", wantErr: true},
 	}
 	for _, tt := range tests {
@@ -148,7 +157,7 @@ func (s *streamStorage) GetObject(context.Context, string, string) (io.ReadClose
 	return io.NopCloser(strings.NewReader("body")), nil
 }
 
-func TestStreamObjectSVGPolicy(t *testing.T) {
+func TestStreamObjectSandboxPolicy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	for _, tt := range []struct {
 		contentType string
@@ -156,6 +165,10 @@ func TestStreamObjectSVGPolicy(t *testing.T) {
 	}{
 		{contentType: "image/svg+xml", wantCSP: true},
 		{contentType: "image/svg+xml; charset=utf-8", wantCSP: true},
+		{contentType: "video/webm", wantCSP: true},
+		{contentType: "audio/mpeg", wantCSP: true},
+		{contentType: "text/xml", wantCSP: true},
+		{contentType: "", wantCSP: true},
 		{contentType: "image/png"},
 		{contentType: "application/pdf"},
 	} {
